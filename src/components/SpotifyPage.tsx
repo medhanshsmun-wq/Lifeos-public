@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Music, Play, Loader2, ListMusic, Heart, Activity } from 'lucide-react';
+import { Music, Play, Loader2, ListMusic, Heart, Activity, Shuffle, Repeat, Pause, SkipBack, SkipForward } from 'lucide-react';
 import { useSpotify } from '@/lib/SpotifyContext';
 
 export default function SpotifyPage() {
-  const { isConnected, getValidToken, deviceId, transferPlayback, loading: contextLoading } = useSpotify();
+  const { isConnected, getValidToken, deviceId, transferPlayback, loading: contextLoading, playingData, handlePlayback, setRepeatMode, setShuffle } = useSpotify();
   
   const [activeTab, setActiveTab] = useState<'playlists' | 'liked'>('playlists');
   const [playlists, setPlaylists] = useState<any[]>([]);
@@ -50,18 +50,22 @@ export default function SpotifyPage() {
     fetchSpotifyData();
   }, [isConnected, getValidToken]);
 
-  const playItem = async (uri: string, isContext: boolean = false) => {
+  const playItem = async (uri: string, isContext: boolean = false, index: number = 0) => {
     const token = await getValidToken();
     if (!token) return;
     
-    // Ensure we have an active device, if not, transfer playback first
-    if (deviceId) {
-      // Just to be safe, ping the transfer API to ensure device is active
-      await transferPlayback();
-    }
+    if (deviceId) await transferPlayback();
 
     try {
-      const body = isContext ? { context_uri: uri } : { uris: [uri] };
+      let body: any = {};
+      if (isContext) {
+        body.context_uri = uri;
+        if (index > 0) body.offset = { position: index };
+      } else {
+        // If playing from liked songs, we play the list starting from this index
+        body.uris = likedSongs.slice(index, index + 50).map(item => item.track.uri);
+      }
+
       await fetch('https://api.spotify.com/v1/me/player/play', {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -117,19 +121,41 @@ export default function SpotifyPage() {
           <p className="text-[var(--text-secondary)] mt-2">Manage and play your Spotify collections directly from LifeOS.</p>
         </div>
         
-        <div className="glass-card p-1 rounded-xl flex gap-1">
-          <button 
-            onClick={() => setActiveTab('playlists')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'playlists' ? 'bg-[#1db954] text-black shadow-lg' : 'text-[var(--text-secondary)] hover:text-white hover:bg-white/5'}`}
-          >
-            <ListMusic className="w-4 h-4" /> Playlists
-          </button>
-          <button 
-            onClick={() => setActiveTab('liked')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'liked' ? 'bg-[#1db954] text-black shadow-lg' : 'text-[var(--text-secondary)] hover:text-white hover:bg-white/5'}`}
-          >
-            <Heart className="w-4 h-4" /> Liked Songs
-          </button>
+        <div className="flex items-center gap-4">
+          {playingData && (
+            <div className="flex items-center gap-2 px-4 py-1.5 rounded-xl bg-white/5 border border-white/10 mr-2">
+              <button onClick={() => setShuffle(!playingData.shuffle_state)} className={`p-1.5 transition-colors ${playingData.shuffle_state ? 'text-[#1db954]' : 'text-[var(--text-tertiary)] hover:text-white'}`}><Shuffle className="w-4 h-4" /></button>
+              <button onClick={() => handlePlayback('previous')} className="p-1.5 text-[var(--text-tertiary)] hover:text-white"><SkipBack className="w-4 h-4" /></button>
+              <button onClick={() => handlePlayback(playingData.is_playing ? 'pause' : 'play')} className="p-2 bg-white text-black rounded-full hover:scale-105 transition-all">{playingData.is_playing ? <Pause className="w-4 h-4" fill="currentColor" /> : <Play className="w-4 h-4 ml-0.5" fill="currentColor" />}</button>
+              <button onClick={() => handlePlayback('next')} className="p-1.5 text-[var(--text-tertiary)] hover:text-white"><SkipForward className="w-4 h-4" /></button>
+              <button 
+                onClick={() => {
+                  const modes: ('off' | 'context' | 'track')[] = ['off', 'context', 'track'];
+                  const nextMode = modes[(modes.indexOf(playingData.repeat_state) + 1) % modes.length];
+                  setRepeatMode(nextMode);
+                }} 
+                className={`p-1.5 transition-colors relative ${playingData.repeat_state !== 'off' ? 'text-[#1db954]' : 'text-[var(--text-tertiary)] hover:text-white'}`}
+              >
+                <Repeat className="w-4 h-4" />
+                {playingData.repeat_state === 'track' && <span className="absolute top-1 right-1 w-1 h-1 bg-[#1db954] rounded-full" />}
+              </button>
+            </div>
+          )}
+
+          <div className="glass-card p-1 rounded-xl flex gap-1">
+            <button 
+              onClick={() => setActiveTab('playlists')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'playlists' ? 'bg-[#1db954] text-black shadow-lg' : 'text-[var(--text-secondary)] hover:text-white hover:bg-white/5'}`}
+            >
+              <ListMusic className="w-4 h-4" /> Playlists
+            </button>
+            <button 
+              onClick={() => setActiveTab('liked')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'liked' ? 'bg-[#1db954] text-black shadow-lg' : 'text-[var(--text-secondary)] hover:text-white hover:bg-white/5'}`}
+            >
+              <Heart className="w-4 h-4" /> Liked Songs
+            </button>
+          </div>
         </div>
       </div>
 
@@ -168,7 +194,7 @@ export default function SpotifyPage() {
               {likedSongs.map((itemObj, index) => {
                 const track = itemObj.track;
                 return (
-                  <motion.div key={track.id} variants={item} className="group flex items-center gap-4 p-3 rounded-xl hover:bg-[var(--bg-elevated)] transition-colors cursor-pointer" onClick={() => playItem(track.uri, false)}>
+                  <motion.div key={track.id} variants={item} className="group flex items-center gap-4 p-3 rounded-xl hover:bg-[var(--bg-elevated)] transition-colors cursor-pointer" onClick={() => playItem(track.uri, false, index)}>
                     <div className="w-8 text-center text-xs text-[var(--text-tertiary)] group-hover:hidden">{index + 1}</div>
                     <div className="w-8 hidden group-hover:flex justify-center text-[#1db954]">
                       <Play className="w-4 h-4" fill="currentColor" />

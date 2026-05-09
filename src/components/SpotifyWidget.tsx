@@ -1,11 +1,11 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Music, Play, Pause, SkipForward, SkipBack, Loader2, MonitorSpeaker } from 'lucide-react';
+import { Music, Play, Pause, SkipForward, SkipBack, Loader2, MonitorSpeaker, Repeat, Shuffle } from 'lucide-react';
 import { useSpotify } from '@/lib/SpotifyContext';
 
 export default function SpotifyWidget() {
-  const { playingData, topArtists, isConnected, deviceId, loading, transferPlayback, handlePlayback } = useSpotify();
+  const { playingData, topArtists, isConnected, deviceId, loading, transferPlayback, handlePlayback, setRepeatMode, setShuffle } = useSpotify();
 
   if (loading) {
     return (
@@ -67,12 +67,30 @@ export default function SpotifyWidget() {
             </div>
           </div>
 
-          <div className="flex items-center justify-center gap-6 pt-2">
+          <div className="flex items-center justify-center gap-4 pt-2">
+            <button 
+              onClick={() => setShuffle(!playingData?.shuffle_state)} 
+              className={`p-2 transition-all ${playingData?.shuffle_state ? 'text-[#1db954]' : 'text-[var(--text-tertiary)] hover:text-white'}`}
+            >
+              <Shuffle className="w-4 h-4" />
+            </button>
             <button onClick={() => handlePlayback('previous')} className="p-2 text-[var(--text-tertiary)] hover:text-white hover:bg-white/10 rounded-full transition-all"><SkipBack className="w-5 h-5" fill="currentColor" /></button>
             <button onClick={() => handlePlayback(isPlaying ? 'pause' : 'play')} className="p-3 bg-white text-black rounded-full hover:scale-105 transition-all shadow-lg shadow-white/10">
               {isPlaying ? <Pause className="w-5 h-5" fill="currentColor" /> : <Play className="w-5 h-5 ml-0.5" fill="currentColor" />}
             </button>
             <button onClick={() => handlePlayback('next')} className="p-2 text-[var(--text-tertiary)] hover:text-white hover:bg-white/10 rounded-full transition-all"><SkipForward className="w-5 h-5" fill="currentColor" /></button>
+            <button 
+              onClick={() => {
+                const modes: ('off' | 'context' | 'track')[] = ['off', 'context', 'track'];
+                const currentIdx = modes.indexOf(playingData?.repeat_state || 'off');
+                const nextMode = modes[(currentIdx + 1) % modes.length];
+                setRepeatMode(nextMode);
+              }} 
+              className={`p-2 transition-all relative ${playingData?.repeat_state !== 'off' ? 'text-[#1db954]' : 'text-[var(--text-tertiary)] hover:text-white'}`}
+            >
+              <Repeat className="w-4 h-4" />
+              {playingData?.repeat_state === 'track' && <span className="absolute top-1 right-1 w-1 h-1 bg-[#1db954] rounded-full" />}
+            </button>
           </div>
         </div>
       ) : (

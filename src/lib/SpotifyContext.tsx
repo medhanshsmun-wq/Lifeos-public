@@ -13,6 +13,9 @@ interface SpotifyContextProps {
   getValidToken: () => Promise<string | null>;
   transferPlayback: () => Promise<void>;
   handlePlayback: (action: 'play' | 'pause' | 'next' | 'previous') => Promise<void>;
+  setRepeatMode: (mode: 'track' | 'context' | 'off') => Promise<void>;
+  setShuffle: (state: boolean) => Promise<void>;
+  playUri: (uri: string, offset?: number) => Promise<void>;
 }
 
 const SpotifyContext = createContext<SpotifyContextProps>({
@@ -25,6 +28,9 @@ const SpotifyContext = createContext<SpotifyContextProps>({
   getValidToken: async () => null,
   transferPlayback: async () => {},
   handlePlayback: async () => {},
+  setRepeatMode: async () => {},
+  setShuffle: async () => {},
+  playUri: async () => {},
 });
 
 export const useSpotify = () => useContext(SpotifyContext);
@@ -170,28 +176,64 @@ export const SpotifyProvider = ({ children }: { children: React.ReactNode }) => 
     }
   };
 
-  const handlePlayback = async (action: 'play' | 'pause' | 'next' | 'previous') => {
+  const setRepeatMode = async (mode: 'track' | 'context' | 'off') => {
     const token = await getValidToken();
     if (!token) return;
-
     try {
-      if (action === 'play' && !playingData && deviceId) {
-        await transferPlayback();
-        return;
-      }
-
-      await fetch(`https://api.spotify.com/v1/me/player/${action}`, {
-        method: action === 'next' || action === 'previous' ? 'POST' : 'PUT',
+      await fetch(`https://api.spotify.com/v1/me/player/repeat?state=${mode}`, {
+        method: 'PUT',
         headers: { Authorization: `Bearer ${token}` }
       });
       setTimeout(fetchData, 500);
     } catch (e) {
-      console.error(`Failed to ${action}`, e);
+      console.error('Failed to set repeat mode', e);
+    }
+  };
+
+  const setShuffle = async (state: boolean) => {
+    const token = await getValidToken();
+    if (!token) return;
+    try {
+      await fetch(`https://api.spotify.com/v1/me/player/shuffle?state=${state}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setTimeout(fetchData, 500);
+    } catch (e) {
+      console.error('Failed to set shuffle', e);
+    }
+  };
+
+  const playUri = async (uri: string, offset: number = 0) => {
+    const token = await getValidToken();
+    if (!token) return;
+    try {
+      const isCollection = uri.includes(':playlist:') || uri.includes(':album:') || uri.includes(':artist:');
+      const body: any = {};
+      if (isCollection) {
+        body.context_uri = uri;
+        if (offset > 0) body.offset = { position: offset };
+      } else {
+        body.uris = [uri];
+      }
+
+      await fetch(`https://api.spotify.com/v1/me/player/play${deviceId ? `?device_id=${deviceId}` : ''}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      setTimeout(fetchData, 1000);
+    } catch (e) {
+      console.error('Failed to play URI', e);
     }
   };
 
   return (
-    <SpotifyContext.Provider value={{ playingData, topArtists, isConnected, deviceId, loading, forceFetch: fetchData, getValidToken, transferPlayback, handlePlayback }}>
+    <SpotifyContext.Provider value={{ 
+      playingData, topArtists, isConnected, deviceId, loading, 
+      forceFetch: fetchData, getValidToken, transferPlayback, 
+      handlePlayback, setRepeatMode, setShuffle, playUri 
+    }}>
       {children}
     </SpotifyContext.Provider>
   );
