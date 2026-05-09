@@ -86,11 +86,11 @@ function IntegrationsContent() {
   };
 
   const integrations = [
-    { name: 'GitHub', desc: 'Track commits, repos, and coding streaks', icon: GitBranch, connected: !!settings?.githubToken, color: '#ffffff' },
-    { name: 'Apple Health', desc: 'Sync steps, distance, and activity data', icon: Heart, connected: false, color: '#ff3b30' },
-    { name: 'Google Calendar', desc: 'Import events and schedule analytics', icon: Calendar, connected: false, color: '#4285f4' },
-    { name: 'Spotify', desc: 'Track listening habits and focus music', icon: Music, connected: !!settings?.spotifyAccessToken, color: '#1db954' },
-    { name: 'Notion', desc: 'Import notes and knowledge base', icon: BookOpen, connected: false, color: '#ffffff' },
+    { name: 'GitHub', desc: 'Track commits, repos, and coding streaks', icon: GitBranch, connected: !!settings?.githubToken, color: '#ffffff', available: true },
+    { name: 'Apple Health', desc: 'Sync steps, distance, and activity data', icon: Heart, connected: false, color: '#ff3b30', available: false },
+    { name: 'Google Calendar', desc: 'Import events and schedule analytics', icon: Calendar, connected: false, color: '#4285f4', available: false },
+    { name: 'Spotify', desc: 'Track listening habits and focus music', icon: Music, connected: !!settings?.spotifyAccessToken, color: '#1db954', available: true },
+    { name: 'Notion', desc: 'Import notes and knowledge base', icon: BookOpen, connected: false, color: '#ffffff', available: false },
   ];
 
   return (
@@ -107,7 +107,7 @@ function IntegrationsContent() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {integrations.map(int => (
-            <motion.div key={int.name} variants={fi} className="glass-card p-5 flex items-start gap-4 hover:border-[var(--border-glow)] transition-all">
+            <motion.div key={int.name} variants={fi} className={`glass-card p-5 flex items-start gap-4 hover:border-[var(--border-glow)] transition-all ${!int.available ? 'opacity-60 grayscale-[0.5]' : ''}`}>
               <div className="p-3 rounded-xl bg-[var(--bg-hover)]"><int.icon className="w-5 h-5" style={{ color: int.color }} /></div>
               <div className="flex-1">
                 <div className="flex items-center justify-between mb-1">
@@ -117,10 +117,12 @@ function IntegrationsContent() {
                       <span className="flex items-center gap-1 text-[10px] text-[var(--accent-green)]"><Check className="w-3 h-3" /> Connected</span>
                       <button onClick={() => handleDisconnect(int.name)} className="px-2 py-1 rounded border border-red-500/20 text-[10px] text-red-400 hover:bg-red-500/10 transition-colors">Disconnect</button>
                     </div>
-                  ) : (
+                  ) : int.available ? (
                     <button onClick={() => handleConnect(int.name)} className="px-3 py-1 rounded-lg text-[10px] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--accent-cyan)] border border-[var(--border-subtle)] transition-colors">
                       {isConnecting && int.name === 'Spotify' ? 'Connecting...' : 'Connect'}
                     </button>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[9px] text-[var(--text-tertiary)] uppercase tracking-wider font-bold">Coming in Future</span>
                   )}
                 </div>
                 <p className="text-xs text-[var(--text-tertiary)]">{int.desc}</p>
