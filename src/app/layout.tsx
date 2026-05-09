@@ -12,6 +12,12 @@ export const metadata: Metadata = {
     "productivity",
     "analytics",
   ],
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "LifeOS",
+  },
   icons: {
     icon: "/icon.png",
     apple: "/apple-touch-icon.png",
