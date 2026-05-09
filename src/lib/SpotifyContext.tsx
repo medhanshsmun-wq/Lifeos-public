@@ -176,6 +176,26 @@ export const SpotifyProvider = ({ children }: { children: React.ReactNode }) => 
     }
   };
 
+  const handlePlayback = async (action: 'play' | 'pause' | 'next' | 'previous') => {
+    const token = await getValidToken();
+    if (!token) return;
+
+    try {
+      if (action === 'play' && !playingData && deviceId) {
+        await transferPlayback();
+        return;
+      }
+
+      await fetch(`https://api.spotify.com/v1/me/player/${action}`, {
+        method: action === 'next' || action === 'previous' ? 'POST' : 'PUT',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setTimeout(fetchData, 500);
+    } catch (e) {
+      console.error(`Failed to ${action}`, e);
+    }
+  };
+
   const setRepeatMode = async (mode: 'track' | 'context' | 'off') => {
     const token = await getValidToken();
     if (!token) return;
