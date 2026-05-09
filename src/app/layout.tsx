@@ -12,6 +12,11 @@ export const metadata: Metadata = {
     "productivity",
     "analytics",
   ],
+  icons: {
+    icon: "/icon.png",
+    apple: "/apple-touch-icon.png",
+  },
+  themeColor: "#050505",
 };
 
 export default function RootLayout({
