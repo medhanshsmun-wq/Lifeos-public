@@ -16,13 +16,28 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "LifeOS",
+    title: "LifeOS AI",
+    startupImage: "/icon.png",
+  },
+  formatDetection: {
+    telephone: false,
   },
   icons: {
     icon: "/icon.png",
     apple: "/apple-touch-icon.png",
   },
   themeColor: "#050505",
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+    viewportFit: "cover",
+  },
+  other: {
+    "apple-mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-status-bar-style": "black-translucent",
+  }
 };
 
 export default function RootLayout({
@@ -41,10 +56,25 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="min-h-full bg-[var(--bg-primary)] text-[var(--text-primary)] noise-bg">
+      <body className="min-h-full bg-[var(--bg-primary)] text-[var(--text-primary)] noise-bg overflow-x-hidden selection:bg-[var(--accent-blue)]/30">
         <div className="orb-1" />
         <div className="orb-2" />
         {children}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/sw.js').then(function(registration) {
+                    console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                  }, function(err) {
+                    console.log('ServiceWorker registration failed: ', err);
+                  });
+                });
+              }
+            `,
+          }}
+        />
       </body>
     </html>
   );

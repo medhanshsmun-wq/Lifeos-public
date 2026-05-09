@@ -65,11 +65,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5 }}
-            className="flex h-screen w-screen overflow-hidden relative z-10"
+            className="flex h-full w-full overflow-hidden relative z-10"
           >
             <Sidebar />
-            <main className="flex-1 overflow-y-auto overflow-x-hidden">
-              {children}
+            <main className="flex-1 overflow-y-auto overflow-x-hidden scroll-smooth">
+              <div className="min-h-full pb-[var(--safe-bottom)]">
+                {children}
+              </div>
             </main>
           </motion.div>
         </SpotifyProvider>

@@ -1,11 +1,14 @@
 {
-  "name": "LifeOS",
+  "name": "LifeOS AI",
   "short_name": "LifeOS",
   "description": "AI-Powered Personal Operating System",
   "start_url": "/",
   "display": "standalone",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "portrait",
   "background_color": "#050505",
   "theme_color": "#050505",
+  "categories": ["productivity", "finance", "health"],
   "icons": [
     {
       "src": "/icon.png",
@@ -17,6 +20,18 @@
       "src": "/apple-touch-icon.png",
       "sizes": "180x180",
       "type": "image/png"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "url": "/",
+      "icons": [{ "src": "/icon.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Study",
+      "url": "/study",
+      "icons": [{ "src": "/icon.png", "sizes": "192x192" }]
     }
   ]
 }
