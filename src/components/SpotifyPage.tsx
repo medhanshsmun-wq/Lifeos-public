@@ -12,14 +12,20 @@ export default function SpotifyPage() {
   const [playlists, setPlaylists] = useState<any[]>([]);
   const [likedSongs, setLikedSongs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchSpotifyData = async () => {
       if (!isConnected) return;
       
       setLoading(true);
+      setError(null);
       const token = await getValidToken();
-      if (!token) return;
+      if (!token) {
+        setError('Session expired. Please refresh or reconnect.');
+        setLoading(false);
+        return;
+      }
 
       try {
         const [playlistsRes, likedRes] = await Promise.all([
@@ -36,6 +42,7 @@ export default function SpotifyPage() {
           setPlaylists(pData.items || []);
         } else {
           console.error('Playlists fetch failed', playlistsRes.status);
+          if (playlistsRes.status === 401) setError('Spotify session expired.');
         }
 
         if (likedRes.ok) {
@@ -43,13 +50,17 @@ export default function SpotifyPage() {
           setLikedSongs(lData.items || []);
         } else {
           console.error('Liked songs fetch failed', likedRes.status);
-          // If 403, might be missing scopes
           if (likedRes.status === 403) {
-            console.warn('Liked songs 403: Possible missing user-library-read scope');
+            setError('Access Denied: Missing "user-library-read" permission. Please disconnect and reconnect Spotify.');
+          } else if (likedRes.status === 401) {
+            setError('Spotify session expired.');
+          } else {
+            setError(`Failed to load songs (Error ${likedRes.status})`);
           }
         }
       } catch (e) {
         console.error('Failed to fetch Spotify user data', e);
+        setError('Network error. Check your connection.');
       } finally {
         setLoading(false);
       }
@@ -170,6 +181,17 @@ export default function SpotifyPage() {
       {loading ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="w-8 h-8 text-[#1db954] animate-spin" />
+        </div>
+      ) : error ? (
+        <div className="py-20 flex flex-col items-center justify-center text-center space-y-4">
+          <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center">
+            <Activity className="w-8 h-8 text-red-500" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-xl font-bold text-white">Sync Error</h3>
+            <p className="text-sm text-[var(--text-secondary)] max-w-md">{error}</p>
+          </div>
+          <button onClick={() => window.location.reload()} className="px-5 py-2 rounded-xl bg-white/5 border border-white/10 text-sm hover:bg-white/10 transition-all">Retry</button>
         </div>
       ) : (
         <AnimatePresence mode="wait">
