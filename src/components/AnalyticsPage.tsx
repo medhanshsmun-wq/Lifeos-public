@@ -13,18 +13,19 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     const load = async () => {
-      const [fitness, study, hobbies, habits, projects] = await Promise.all([
+      const [fitness, study, hobbies, habits, projects, trades] = await Promise.all([
         db.fitness.orderBy('date').toArray(),
         db.study.orderBy('date').toArray(),
         db.hobbies.toArray(),
         db.habits.toArray(),
         db.projects.toArray(),
+        db.trades.toArray(),
       ]);
 
       // Weekly productivity scores (mock removed, calculating basic weekly entry counts)
       const weeklyProd = Array.from({ length: 8 }, (_, i) => {
         const week = `W${i + 1}`;
-        const score = Math.min(100, Math.floor(fitness.length * 2 + study.length * 3 + projects.length * 5) || 0);
+        const score = Math.min(100, Math.floor(fitness.length * 2 + study.length * 3 + projects.length * 5 + trades.length * 4) || 0);
         return { week, score };
       });
 
@@ -34,13 +35,15 @@ export default function AnalyticsPage() {
       const hobbyScore = Math.min(100, hobbies.length * 2);
       const habitScore = Math.min(100, habits.length ? (habits.filter(h => h.completed).length / Math.max(1, habits.length)) * 100 : 0);
       const projScore = Math.min(100, projects.length * 15);
+      const tradingScore = Math.min(100, trades.length * 10);
+      
       const lifeBalance = [
         { area: 'Fitness', value: fitScore, fullMark: 100 },
         { area: 'Study', value: studyScore, fullMark: 100 },
         { area: 'Hobbies', value: hobbyScore, fullMark: 100 },
         { area: 'Habits', value: habitScore, fullMark: 100 },
         { area: 'Projects', value: projScore, fullMark: 100 },
-        { area: 'Finance', value: 70, fullMark: 100 },
+        { area: 'Trading', value: tradingScore, fullMark: 100 },
       ];
 
       // Daily trends (derived from actual data)

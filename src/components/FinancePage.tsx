@@ -26,20 +26,15 @@ function CT({ active, payload, label }: { active?: boolean; payload?: Array<{ va
 }
 
 export default function FinancePage() {
-  const [activeTab, setActiveTab] = useState<'finance' | 'trading'>('finance');
-  const [finance, setFinance] = useState<FinanceEntry[]>([]);
   const [trades, setTrades] = useState<Trade[]>([]);
   const [settings, setSettings] = useState<any>(null);
-  const [showAddTx, setShowAddTx] = useState(false);
   const [showAddTrade, setShowAddTrade] = useState(false);
 
   const loadData = async () => {
-    const [f, t, s] = await Promise.all([
-      db.finance.orderBy('date').reverse().toArray(),
+    const [t, s] = await Promise.all([
       db.trades.orderBy('entryTime').reverse().toArray(),
       db.settings.toArray()
     ]);
-    setFinance(f);
     setTrades(t);
     setSettings(s[0]);
   };
@@ -55,60 +50,30 @@ export default function FinancePage() {
   return (
     <div className="p-6 lg:p-8 min-h-full">
       <div className="max-w-[1400px] mx-auto space-y-6">
-        {/* Header & Tabs */}
+        {/* Header */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-[rgba(0,212,255,0.1)]">
-              <Wallet className="w-5 h-5 text-[var(--accent-cyan)]" />
+            <div className="p-2.5 rounded-xl bg-[rgba(168,85,247,0.1)]">
+              <CandlestickChart className="w-5 h-5 text-[var(--accent-purple)]" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-[var(--text-primary)]">Finance & Markets</h1>
-              <p className="text-xs text-[var(--text-tertiary)] font-mono">Wealth management & trading performance</p>
+              <h1 className="text-2xl font-bold text-[var(--text-primary)]">Day Trading</h1>
+              <p className="text-xs text-[var(--text-tertiary)] font-mono">Real-time execution log & performance metrics</p>
             </div>
-          </div>
-
-          <div className="flex p-1 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)]">
-            <button
-              onClick={() => setActiveTab('finance')}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${activeTab === 'finance' ? 'bg-[var(--bg-elevated)] text-[var(--accent-cyan)] shadow-sm' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'}`}
-            >
-              Treasury
-            </button>
-            <button
-              onClick={() => setActiveTab('trading')}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${activeTab === 'trading' ? 'bg-[var(--bg-elevated)] text-[var(--accent-purple)] shadow-sm' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'}`}
-            >
-              Trading
-            </button>
           </div>
         </div>
 
-        <AnimatePresence mode="wait">
-          {activeTab === 'finance' ? (
-            <motion.div key="finance" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-              <BankingDashboard finance={finance} onAdd={() => setShowAddTx(true)} />
-            </motion.div>
-          ) : (
-            <motion.div key="trading" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-              <TradingJournal 
-                trades={trades} 
-                onAdd={() => setShowAddTrade(true)} 
-                onUpdate={loadData}
-                propFirmCount={settings?.propFirmAccountsCount || 1}
-                onUpdatePropFirmCount={updatePropFirmCount}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <TradingJournal 
+          trades={trades} 
+          onAdd={() => setShowAddTrade(true)} 
+          onUpdate={loadData}
+          propFirmCount={settings?.propFirmAccountsCount || 1}
+          onUpdatePropFirmCount={updatePropFirmCount}
+        />
       </div>
 
       {/* Modals */}
       <AnimatePresence>
-        {showAddTx && (
-          <Modal onClose={() => setShowAddTx(false)} title="New Transaction">
-            <FinanceForm onSave={async (e) => { await db.finance.add(e); loadData(); setShowAddTx(false); }} />
-          </Modal>
-        )}
         {showAddTrade && (
           <Modal onClose={() => setShowAddTrade(false)} title="Log Trade Protocol">
             <TradeForm 
@@ -122,125 +87,6 @@ export default function FinancePage() {
   );
 }
 
-// ─── Banking Dashboard Component ──────────────────────────
-function BankingDashboard({ finance, onAdd }: { finance: FinanceEntry[]; onAdd: () => void }) {
-  const [tab, setTab] = useState<'all' | 'income' | 'expense'>('all');
-
-  const stats = useMemo(() => {
-    const income = finance.filter(f => f.type === 'income').reduce((s, f) => s + f.amount, 0);
-    const expenses = finance.filter(f => f.type === 'expense').reduce((s, f) => s + f.amount, 0);
-    return { income, expenses, balance: income - expenses, txCount: finance.length };
-  }, [finance]);
-
-  const catData = useMemo(() => {
-    const cats: Record<string, number> = {};
-    finance.filter(f => f.type === 'expense').forEach(f => { cats[f.category] = (cats[f.category] || 0) + f.amount; });
-    return Object.entries(cats).sort((a, b) => b[1] - a[1]).map(([name, value], i) => ({ name, value, fill: COLORS[i % COLORS.length] }));
-  }, [finance]);
-
-  const dailyData = useMemo(() => {
-    const days: Record<string, { income: number; expense: number }> = {};
-    finance.forEach(f => {
-      const d = new Date(f.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      if (!days[d]) days[d] = { income: 0, expense: 0 };
-      if (f.type === 'income') days[d].income += f.amount; else days[d].expense += f.amount;
-    });
-    return Object.entries(days).slice(-14).map(([day, v]) => ({ day, ...v }));
-  }, [finance]);
-
-  const filtered = finance.filter(f => tab === 'all' || f.type === tab);
-
-  return (
-    <motion.div variants={anim} initial="hidden" animate="show" className="space-y-6">
-      <motion.div variants={fi} className="flex justify-end">
-        <button onClick={onAdd} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[var(--accent-orange)] to-[var(--accent-pink)] text-white text-sm font-bold shadow-lg shadow-orange-500/20">
-          <Plus className="w-4 h-4" /> Add Transaction
-        </button>
-      </motion.div>
-
-      <motion.div variants={fi} className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard title="Income" value={`₹${stats.income.toLocaleString()}`} icon={TrendingUp} color="var(--accent-green)" />
-        <StatCard title="Expenses" value={`₹${stats.expenses.toLocaleString()}`} icon={TrendingDown} color="var(--accent-red)" />
-        <StatCard title="Balance" value={`₹${stats.balance.toLocaleString()}`} icon={Wallet} color={stats.balance >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'} />
-        <StatCard title="Total TX" value={stats.txCount} icon={PieChart} color="var(--accent-purple)" />
-      </motion.div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <motion.div variants={fi} className="lg:col-span-2 glass-card p-6">
-          <h3 className="text-sm font-bold mb-6 flex items-center gap-2 uppercase tracking-wider">
-            <Activity className="w-4 h-4 text-[var(--accent-cyan)]" /> Cash Flow Visualizer
-          </h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={dailyData} barSize={16}>
-              <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'var(--text-tertiary)' }} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'var(--text-tertiary)' }} width={40} />
-              <Tooltip content={<CT />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
-              <Bar dataKey="income" fill="var(--accent-green)" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="expense" fill="var(--accent-red)" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </motion.div>
-        <motion.div variants={fi} className="glass-card p-6">
-          <h3 className="text-sm font-bold mb-6 flex items-center gap-2 uppercase tracking-wider">
-            <PieChart className="w-4 h-4 text-[var(--accent-purple)]" /> Allocation
-          </h3>
-          <ResponsiveContainer width="100%" height={200}>
-            <RPie><Pie data={catData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value">{catData.map((e, i) => <Cell key={i} fill={e.fill} />)}</Pie></RPie>
-          </ResponsiveContainer>
-          <div className="space-y-1 mt-6">
-            {catData.slice(0, 5).map(c => (
-              <div key={c.name} className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full" style={{ background: c.fill }} />
-                  <span className="text-[var(--text-secondary)] font-medium">{c.name}</span>
-                </div>
-                <span className="text-[var(--text-tertiary)] font-mono">₹{c.value.toLocaleString()}</span>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      </div>
-
-      {/* Transactions List */}
-      <motion.div variants={fi} className="glass-card p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-sm font-bold flex items-center gap-2 uppercase tracking-wider">
-            <History className="w-4 h-4 text-[var(--accent-cyan)]" /> Ledger
-          </h3>
-          <div className="flex p-0.5 rounded-lg bg-[var(--bg-hover)]">
-            {(['all', 'income', 'expense'] as const).map(t => (
-              <button 
-                key={t} 
-                onClick={() => setTab(t)} 
-                className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition-all ${tab === t ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'}`}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-          {filtered.map((f, i) => (
-            <div key={f.id ?? i} className="flex items-center justify-between p-4 rounded-2xl bg-[var(--bg-secondary)]/40 border border-[var(--border-subtle)] hover:border-[var(--accent-cyan)]/30 transition-all group">
-              <div className="flex items-center gap-4">
-                <div className={`p-2 rounded-xl ${f.type === 'income' ? 'bg-[rgba(34,197,94,0.1)]' : 'bg-[rgba(239,68,68,0.1)]'}`}>
-                  {f.type === 'income' ? <ArrowUpRight className="w-4 h-4 text-[var(--accent-green)]" /> : <ArrowDownRight className="w-4 h-4 text-[var(--accent-red)]" />}
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-[var(--text-primary)]">{f.description}</p>
-                  <p className="text-[10px] text-[var(--text-tertiary)] font-mono uppercase tracking-wider">{f.category} • {new Date(f.date).toLocaleDateString()}</p>
-                </div>
-              </div>
-              <span className={`text-sm font-bold ${f.type === 'income' ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]'}`}>
-                {f.type === 'income' ? '+' : '-'}₹{f.amount.toLocaleString()}
-              </span>
-            </div>
-          ))}
-        </div>
-      </motion.div>
-    </motion.div>
-  );
-}
 
 // ─── Trading Journal Component ────────────────────────────
 function TradingJournal({ trades, onAdd, onUpdate, propFirmCount, onUpdatePropFirmCount }: { 
@@ -501,33 +347,6 @@ function Modal({ onClose, title, children }: { onClose: () => void; title: strin
   );
 }
 
-function FinanceForm({ onSave }: { onSave: (e: Omit<FinanceEntry, 'id'>) => void }) {
-  const [amt, setAmt] = useState(''); const [type, setType] = useState<'income' | 'expense'>('expense'); const [cat, setCat] = useState('Food'); const [desc, setDesc] = useState('');
-  return (
-    <div className="space-y-5">
-      <div className="flex p-1 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)]">
-        {(['expense', 'income'] as const).map(t => (
-          <button 
-            key={t} 
-            onClick={() => setType(t)} 
-            className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase transition-all ${type === t ? (t === 'income' ? 'bg-[var(--accent-green)]/10 text-[var(--accent-green)]' : 'bg-[var(--accent-red)]/10 text-[var(--accent-red)]') : 'text-[var(--text-tertiary)]'}`}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
-      <FormInput label="Amount (₹)" value={amt} onChange={setAmt} type="number" placeholder="0.00" />
-      <FormSelect label="Category" value={cat} onChange={setCat} options={['Food','Transport','Entertainment','Education','Shopping','Subscriptions','Utilities','Freelance','Stipend','Other']} />
-      <FormInput label="Description" value={desc} onChange={setDesc} placeholder="Log detail..." />
-      <button 
-        onClick={() => onSave({ amount: +amt || 0, type, category: cat, description: desc || 'Transaction', date: new Date() })} 
-        className="w-full py-4 rounded-2xl bg-gradient-to-r from-[var(--accent-orange)] to-[var(--accent-pink)] text-white font-bold text-sm shadow-lg shadow-orange-500/20"
-      >
-        Execute Sync
-      </button>
-    </div>
-  );
-}
 
 function TradeForm({ onSave, propFirmCount }: { onSave: (e: Omit<Trade, 'id'>) => void; propFirmCount: number }) {
   const [form, setForm] = useState({

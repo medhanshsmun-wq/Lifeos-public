@@ -25,7 +25,8 @@ import {
   Music,
   Play,
   Pause,
-  SkipForward
+  SkipForward,
+  CandlestickChart,
 } from 'lucide-react';
 import { useSpotify } from '@/lib/SpotifyContext';
 
@@ -35,7 +36,7 @@ const navItems = [
   { label: 'Projects', icon: FolderKanban, href: '/projects', color: 'var(--accent-blue)' },
   { label: 'Hobbies', icon: Gamepad2, href: '/hobbies', color: 'var(--accent-pink)' },
   { label: 'Fitness', icon: Dumbbell, href: '/fitness', color: 'var(--accent-green)' },
-  { label: 'Finance', icon: Wallet, href: '/finance', color: 'var(--accent-orange)' },
+  { label: 'Day Trading', icon: CandlestickChart, href: '/finance', color: 'var(--accent-purple)' },
   { label: 'Study', icon: GraduationCap, href: '/study', color: 'var(--accent-yellow)' },
   { label: 'Analytics', icon: BarChart3, href: '/analytics', color: 'var(--accent-cyan)' },
   { label: 'Reports', icon: FileText, href: '/reports', color: 'var(--accent-purple)' },
@@ -50,7 +51,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const { playingData, handlePlayback, isConnected } = useSpotify();
-  
+
   const track = playingData?.item;
   const isPlaying = playingData?.is_playing;
 

@@ -276,23 +276,7 @@ export const db = new LifeOSDB();
 
 // ─── Initializer ───────────────────────────────────────
 export async function initializeDb() {
-  if (typeof window !== 'undefined' && !localStorage.getItem('wiped_v2')) {
-    localStorage.setItem('wiped_v2', 'true');
-    await Promise.all([
-      db.projects.clear(),
-      db.finance.clear(),
-      db.fitness.clear(),
-      db.diet.clear(),
-      db.gym.clear(),
-      db.hobbies.clear(),
-      db.study.clear(),
-      db.habits.clear(),
-      db.conversations.clear(),
-      db.weeklyReports.clear(),
-      db.timeline.clear(),
-      db.trades.clear(),
-    ]);
-  }
+  // Removed dangerous localStorage-based wipe logic that could trigger if browser cleared localStorage but kept IndexedDB
 
   const settingsCount = await db.settings.count();
   if (settingsCount === 0) {
@@ -311,11 +295,28 @@ export async function initializeDb() {
   } else {
     // Migration for existing users
     const s = await db.settings.toArray();
-    if (s[0] && (!s[0].dashboardWidgets || !s[0].accentColor || s[0].propFirmAccountsCount === undefined)) {
-      await db.settings.update(s[0].id!, {
-        dashboardWidgets: s[0].dashboardWidgets || ['productivity', 'habits', 'ai-insights', 'recent-activity', 'integrations'],
-        accentColor: s[0].accentColor || '#00F5FF',
-        propFirmAccountsCount: s[0].propFirmAccountsCount ?? 1
+    
+    // Ensure we only have one settings object to avoid confusion
+    if (s.length > 1) {
+      // Keep the one with the most data (heuristic: most fields defined)
+      const best = s.reduce((prev, curr) => {
+        const score = (o: UserSettings) => Object.values(o).filter(v => v !== '' && v !== null && v !== undefined).length;
+        return score(curr) > score(prev) ? curr : prev;
+      });
+      // Delete others
+      for (const settingsObj of s) {
+        if (settingsObj.id !== best.id) {
+          await db.settings.delete(settingsObj.id!);
+        }
+      }
+    }
+
+    const current = (await db.settings.toArray())[0];
+    if (current && (!current.dashboardWidgets || !current.accentColor || current.propFirmAccountsCount === undefined)) {
+      await db.settings.update(current.id!, {
+        dashboardWidgets: current.dashboardWidgets || ['productivity', 'habits', 'ai-insights', 'recent-activity', 'integrations'],
+        accentColor: current.accentColor || '#00F5FF',
+        propFirmAccountsCount: current.propFirmAccountsCount ?? 1
       });
     }
   }

@@ -167,8 +167,10 @@ export default function SettingsPage() {
                 onConfirm: async () => {
                   await Promise.all([
                     db.projects.clear(), db.finance.clear(), db.fitness.clear(), 
-                    db.hobbies.clear(), db.study.clear(), db.habits.clear(), 
-                    db.conversations.clear(), db.weeklyReports.clear(), db.timeline.clear()
+                    db.diet.clear(), db.gym.clear(), db.hobbies.clear(), 
+                    db.study.clear(), db.subjects.clear(), db.studyAssignments.clear(),
+                    db.habits.clear(), db.conversations.clear(), db.weeklyReports.clear(), 
+                    db.timeline.clear(), db.settings.clear(), db.trades.clear()
                   ]);
                   setModal({
                     isOpen: true,

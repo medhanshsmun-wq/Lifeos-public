@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { db, type Project, type FinanceEntry, type FitnessEntry, type HabitEntry, type TimelineEvent } from '@/lib/db';
+import { db, type Project, type FitnessEntry, type HabitEntry, type TimelineEvent } from '@/lib/db';
 import {
   Activity,
   TrendingUp,
@@ -21,6 +21,7 @@ import {
   Brain,
   Link as LinkIcon,
   Sparkles,
+  CandlestickChart,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -66,7 +67,7 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
 
 export default function DashboardPage() {
   const [projects, setProjects] = useState<Project[]>([]);
-  const [finance, setFinance] = useState<FinanceEntry[]>([]);
+  const [trades, setTrades] = useState<any[]>([]);
   const [fitness, setFitness] = useState<FitnessEntry[]>([]);
   const [habits, setHabits] = useState<HabitEntry[]>([]);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
@@ -81,19 +82,19 @@ export default function DashboardPage() {
     else setGreeting('Good evening');
 
     const load = async () => {
-      const [p, f, fit, h, t, s] = await Promise.all([
+      const [p, t, fit, h, timelineData, s] = await Promise.all([
         db.projects.toArray(),
-        db.finance.toArray(),
+        db.trades.toArray(),
         db.fitness.orderBy('date').reverse().limit(14).toArray(),
         db.habits.toArray(),
         db.timeline.orderBy('date').reverse().limit(6).toArray(),
         db.settings.toArray(),
       ]);
       setProjects(p);
-      setFinance(f);
+      setTrades(t);
       setFitness(fit.reverse());
       setHabits(h);
-      setTimeline(t);
+      setTimeline(timelineData);
       if (s[0]) {
         if (s[0].githubToken) setGithubLive(true);
         if (s[0].dashboardWidgets) setActiveWidgets(s[0].dashboardWidgets);
@@ -110,8 +111,8 @@ export default function DashboardPage() {
     const activeProjects = projects.filter(p => p.status === 'Ongoing').length;
     const finishedProjects = projects.filter(p => p.status === 'Finished').length;
 
-    const totalExpenses = finance.filter(f => f.type === 'expense').reduce((s, f) => s + f.amount, 0);
-    const totalIncome = finance.filter(f => f.type === 'income').reduce((s, f) => s + f.amount, 0);
+    const totalPnl = trades.reduce((s, t) => s + (t.pnl || 0), 0);
+    const winRate = trades.length > 0 ? (trades.filter(t => t.pnl > 0).length / trades.length) * 100 : 0;
 
     const todaySteps = fitness.length > 0 ? fitness[fitness.length - 1]?.steps || 0 : 0;
     const totalSteps = fitness.reduce((s, f) => s + f.steps, 0);
@@ -134,11 +135,11 @@ export default function DashboardPage() {
     const productivityScore = Math.min(Math.round(projectScore + habitScore + fitnessScore), 100);
 
     return {
-      activeProjects, finishedProjects, totalExpenses, totalIncome,
+      activeProjects, finishedProjects, totalPnl, winRate,
       todaySteps, avgSteps, totalCalories, habitRate, productivityScore,
       completedToday, totalToday,
     };
-  }, [projects, finance, fitness, habits]);
+  }, [projects, trades, fitness, habits]);
 
   // Chart data
   const stepsChartData = fitness.map((f, i) => ({
@@ -147,16 +148,13 @@ export default function DashboardPage() {
     calories: f.caloriesBurned,
   }));
 
-  const spendingByCategory = useMemo(() => {
-    const cats: Record<string, number> = {};
-    finance.filter(f => f.type === 'expense').forEach(f => {
-      cats[f.category] = (cats[f.category] || 0) + f.amount;
+  const pnlCurveData = useMemo(() => {
+    let running = 0;
+    return trades.slice(-14).map((t, i) => {
+      running += (t.pnl || 0);
+      return { day: `T${i+1}`, pnl: running };
     });
-    return Object.entries(cats)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 6)
-      .map(([name, value]) => ({ name, value }));
-  }, [finance]);
+  }, [trades]);
 
   const productivityRadial = [
     { name: 'score', value: stats.productivityScore, fill: 'url(#gradientRadial)' },
@@ -211,11 +209,11 @@ export default function DashboardPage() {
             color="var(--accent-green)"
           />
           <StatCard
-            icon={<Wallet className="w-4 h-4" />}
-            label="Balance"
-            value={`₹${(stats.totalIncome - stats.totalExpenses).toLocaleString()}`}
-            trend={stats.totalIncome > stats.totalExpenses ? +8 : -5}
-            color="var(--accent-orange)"
+            icon={<TrendingUp className="w-4 h-4" />}
+            label="Trading P&L"
+            value={`₹${stats.totalPnl.toLocaleString()}`}
+            sub={`${stats.winRate.toFixed(1)}% Win Rate`}
+            color="var(--accent-purple)"
           />
         </motion.div>
 
@@ -248,28 +246,28 @@ export default function DashboardPage() {
               </ResponsiveContainer>
             </div>
 
-            {/* Spending Chart */}
+            {/* Trading Performance Chart */}
             <div className="glass-card p-5">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
-                  <Wallet className="w-4 h-4 text-[var(--accent-orange)]" />
-                  <h3 className="text-sm font-semibold text-[var(--text-primary)]">Spending by Category</h3>
+                  <CandlestickChart className="w-4 h-4 text-[var(--accent-purple)]" />
+                  <h3 className="text-sm font-semibold text-[var(--text-primary)]">Trading Equity Curve</h3>
                 </div>
-                <span className="badge badge-orange">This month</span>
+                <span className="badge badge-purple">Last 14 Trades</span>
               </div>
               <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={spendingByCategory} barSize={32}>
+                <AreaChart data={pnlCurveData}>
                   <defs>
-                    <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--accent-orange)" stopOpacity={0.8} />
-                      <stop offset="100%" stopColor="var(--accent-pink)" stopOpacity={0.4} />
+                    <linearGradient id="pnlGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--accent-purple)" stopOpacity={0.4} />
+                      <stop offset="100%" stopColor="var(--accent-purple)" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} />
+                  <XAxis dataKey="day" axisLine={false} tickLine={false} />
                   <YAxis axisLine={false} tickLine={false} width={50} />
                   <Tooltip content={<ChartTooltip />} />
-                  <Bar dataKey="value" fill="url(#barGrad)" radius={[6, 6, 0, 0]} />
-                </BarChart>
+                  <Area type="monotone" dataKey="pnl" stroke="var(--accent-purple)" strokeWidth={2} fill="url(#pnlGrad)" />
+                </AreaChart>
               </ResponsiveContainer>
             </div>
 

@@ -182,30 +182,28 @@ export default function CopilotPage() {
   }, [messages, bootLines]);
 
   const getContext = useCallback(async () => {
-    const [projects, finance, fitness, study, habits, settings] = await Promise.all([
+    const [projects, trades, fitness, study, habits, settings] = await Promise.all([
       db.projects.toArray(),
-      db.finance.toArray(),
+      db.trades.toArray(),
       db.fitness.orderBy('date').reverse().limit(7).toArray(),
       db.study.orderBy('date').reverse().limit(10).toArray(),
       db.habits.toArray(),
       db.settings.toArray(),
     ]);
 
-    const totalExpenses = finance.filter(f => f.type === 'expense').reduce((s, f) => s + f.amount, 0);
-    const totalIncome = finance.filter(f => f.type === 'income').reduce((s, f) => s + f.amount, 0);
+    const totalPnl = trades.reduce((s, t) => s + (t.pnl || 0), 0);
+    const winRate = trades.length > 0 ? (trades.filter(t => t.pnl > 0).length / trades.length) * 100 : 0;
     const avgSteps = fitness.length > 0 ? Math.round(fitness.reduce((s, f) => s + f.steps, 0) / fitness.length) : 0;
-    const totalStudy = study.reduce((s, ss) => s + ss.duration, 0);
     const githubUser = settings[0]?.githubUsername;
-    const githubToken = settings[0]?.githubToken;
 
     return `
 USER CONTEXT (LifeOS Data):
 - Projects: ${projects.map(p => `${p.title} (${p.status})`).join(', ')}
-- Finance: Balance ₹${(totalIncome - totalExpenses).toLocaleString()}
+- Day Trading: Total PnL ₹${totalPnl.toLocaleString()}, Win Rate ${winRate.toFixed(1)}%
 - Fitness: Avg Steps ${avgSteps}
 - GitHub: ${githubUser || 'Not integrated'}
 
-You are the LifeOS Neural Shell. Response must be strictly professional, data-dense, and formatted for a VS Code terminal. Use markdown tables, code blocks, and bold text. If a command looks like a CLI flag (e.g. --spending), interpret it correctly.`;
+You are the LifeOS Neural Shell. Response must be strictly professional, data-dense, and formatted for a VS Code terminal. Use markdown tables, code blocks, and bold text. If a command looks like a CLI flag (e.g. --performance), interpret it correctly.`;
   }, []);
 
   const sendMessage = useCallback(async (text?: string) => {
