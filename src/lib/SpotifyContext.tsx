@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { db } from '@/lib/db';
 
 interface SpotifyContextProps {
@@ -43,7 +43,7 @@ export const SpotifyProvider = ({ children }: { children: React.ReactNode }) => 
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const playerRef = useRef<any>(null);
 
-  const getValidToken = async () => {
+  const getValidToken = useCallback(async () => {
     const settings = await db.settings.toArray();
     if (!settings.length || !settings[0].spotifyAccessToken) return null;
 
@@ -73,9 +73,9 @@ export const SpotifyProvider = ({ children }: { children: React.ReactNode }) => 
       }
     }
     return spotifyAccessToken;
-  };
+  }, []);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     const token = await getValidToken();
     if (!token) {
       setIsConnected(false);
@@ -106,13 +106,13 @@ export const SpotifyProvider = ({ children }: { children: React.ReactNode }) => 
     } finally {
       setLoading(false);
     }
-  };
+  }, [getValidToken]);
 
   useEffect(() => {
     fetchData();
     const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchData]);
 
   // Initialize Web Playback SDK globally
   useEffect(() => {
@@ -158,9 +158,9 @@ export const SpotifyProvider = ({ children }: { children: React.ReactNode }) => 
     }
 
     // Do NOT disconnect on unmount unless we explicitly want to destroy the persistent player
-  }, [isConnected]);
+  }, [isConnected, getValidToken, fetchData]);
 
-  const transferPlayback = async () => {
+  const transferPlayback = useCallback(async () => {
     if (!deviceId) return;
     const token = await getValidToken();
     if (!token) return;
@@ -174,9 +174,9 @@ export const SpotifyProvider = ({ children }: { children: React.ReactNode }) => 
     } catch (e) {
       console.error('Failed to transfer playback', e);
     }
-  };
+  }, [deviceId, getValidToken, fetchData]);
 
-  const handlePlayback = async (action: 'play' | 'pause' | 'next' | 'previous') => {
+  const handlePlayback = useCallback(async (action: 'play' | 'pause' | 'next' | 'previous') => {
     const token = await getValidToken();
     if (!token) return;
 
@@ -194,9 +194,9 @@ export const SpotifyProvider = ({ children }: { children: React.ReactNode }) => 
     } catch (e) {
       console.error(`Failed to ${action}`, e);
     }
-  };
+  }, [deviceId, getValidToken, fetchData, playingData, transferPlayback]);
 
-  const setRepeatMode = async (mode: 'track' | 'context' | 'off') => {
+  const setRepeatMode = useCallback(async (mode: 'track' | 'context' | 'off') => {
     const token = await getValidToken();
     if (!token) return;
     try {
@@ -208,9 +208,9 @@ export const SpotifyProvider = ({ children }: { children: React.ReactNode }) => 
     } catch (e) {
       console.error('Failed to set repeat mode', e);
     }
-  };
+  }, [getValidToken, fetchData]);
 
-  const setShuffle = async (state: boolean) => {
+  const setShuffle = useCallback(async (state: boolean) => {
     const token = await getValidToken();
     if (!token) return;
     try {
@@ -222,9 +222,9 @@ export const SpotifyProvider = ({ children }: { children: React.ReactNode }) => 
     } catch (e) {
       console.error('Failed to set shuffle', e);
     }
-  };
+  }, [getValidToken, fetchData]);
 
-  const playUri = async (uri: string, offset: number = 0) => {
+  const playUri = useCallback(async (uri: string, offset: number = 0) => {
     const token = await getValidToken();
     if (!token) return;
     try {
@@ -246,7 +246,7 @@ export const SpotifyProvider = ({ children }: { children: React.ReactNode }) => 
     } catch (e) {
       console.error('Failed to play URI', e);
     }
-  };
+  }, [deviceId, getValidToken, fetchData]);
 
   return (
     <SpotifyContext.Provider value={{ 

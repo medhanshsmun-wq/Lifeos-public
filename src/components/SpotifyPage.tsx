@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Music, Play, Loader2, ListMusic, Heart, Activity, Shuffle, Repeat, Pause, SkipBack, SkipForward } from 'lucide-react';
 import { useSpotify } from '@/lib/SpotifyContext';
@@ -14,62 +14,65 @@ export default function SpotifyPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchSpotifyData = async () => {
-      if (!isConnected) return;
-      
-      setLoading(true);
-      setError(null);
-      const token = await getValidToken();
-      if (!token) {
-        setError('Session expired. Please refresh or reconnect.');
-        setLoading(false);
-        return;
+  const fetchSpotifyData = useCallback(async () => {
+    if (!isConnected) return;
+    
+    setLoading(true);
+    setError(null);
+    const token = await getValidToken();
+    if (!token) {
+      setError('Session expired. Please refresh or reconnect.');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const [playlistsRes, likedRes] = await Promise.all([
+        fetch('https://api.spotify.com/v1/me/playlists?limit=50', {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        fetch('https://api.spotify.com/v1/me/tracks?limit=50', {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+      ]);
+
+      if (playlistsRes.ok) {
+        const pData = await playlistsRes.json();
+        setPlaylists(pData.items || []);
+      } else {
+        console.error('Playlists fetch failed', playlistsRes.status);
+        if (playlistsRes.status === 401) setError('Spotify session expired.');
+        if (playlistsRes.status === 429) setError('Rate limit exceeded. Please wait a few minutes before trying again.');
       }
 
-      try {
-        const [playlistsRes, likedRes] = await Promise.all([
-          fetch('https://api.spotify.com/v1/me/playlists?limit=50', {
-            headers: { Authorization: `Bearer ${token}` }
-          }),
-          fetch('https://api.spotify.com/v1/me/tracks?limit=50', {
-            headers: { Authorization: `Bearer ${token}` }
-          })
-        ]);
-
-        if (playlistsRes.ok) {
-          const pData = await playlistsRes.json();
-          setPlaylists(pData.items || []);
+      if (likedRes.ok) {
+        const lData = await likedRes.json();
+        setLikedSongs(lData.items || []);
+      } else {
+        console.error('Liked songs fetch failed', likedRes.status);
+        if (likedRes.status === 403) {
+          setError('Access Denied: Missing "user-library-read" permission. Please disconnect and reconnect Spotify.');
+        } else if (likedRes.status === 401) {
+          setError('Spotify session expired.');
+        } else if (likedRes.status === 429) {
+          setError('Rate limit exceeded. Too many requests. Please wait ~5 minutes.');
         } else {
-          console.error('Playlists fetch failed', playlistsRes.status);
-          if (playlistsRes.status === 401) setError('Spotify session expired.');
+          setError(`Failed to load songs (Error ${likedRes.status})`);
         }
-
-        if (likedRes.ok) {
-          const lData = await likedRes.json();
-          setLikedSongs(lData.items || []);
-        } else {
-          console.error('Liked songs fetch failed', likedRes.status);
-          if (likedRes.status === 403) {
-            setError('Access Denied: Missing "user-library-read" permission. Please disconnect and reconnect Spotify.');
-          } else if (likedRes.status === 401) {
-            setError('Spotify session expired.');
-          } else {
-            setError(`Failed to load songs (Error ${likedRes.status})`);
-          }
-        }
-      } catch (e) {
-        console.error('Failed to fetch Spotify user data', e);
-        setError('Network error. Check your connection.');
-      } finally {
-        setLoading(false);
       }
-    };
-
-    fetchSpotifyData();
+    } catch (e) {
+      console.error('Failed to fetch Spotify user data', e);
+      setError('Network error. Check your connection.');
+    } finally {
+      setLoading(false);
+    }
   }, [isConnected, getValidToken]);
 
-  const playItem = async (uri: string, isContext: boolean = false, index: number = 0) => {
+  useEffect(() => {
+    fetchSpotifyData();
+  }, [fetchSpotifyData]);
+
+  const playItem = useCallback(async (uri: string, isContext: boolean = false, index: number = 0) => {
     const token = await getValidToken();
     if (!token) return;
     
@@ -82,7 +85,7 @@ export default function SpotifyPage() {
         if (index > 0) body.offset = { position: index };
       } else {
         // If playing from liked songs, we play the list starting from this index
-        body.uris = likedSongs.slice(index, index + 50).map(item => item.track.uri);
+        body.uris = likedSongs.slice(index, index + 50).map(item => item.track?.uri).filter(Boolean);
       }
 
       await fetch('https://api.spotify.com/v1/me/player/play', {
@@ -93,7 +96,7 @@ export default function SpotifyPage() {
     } catch (e) {
       console.error('Failed to play item', e);
     }
-  };
+  }, [getValidToken, deviceId, transferPlayback, likedSongs]);
 
   const container = {
     hidden: { opacity: 0 },
