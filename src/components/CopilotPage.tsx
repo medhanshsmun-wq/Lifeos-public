@@ -28,7 +28,10 @@ import {
   Split,
   Square,
   ChevronDown,
-  Edit3
+  Edit3,
+  Image as ImageIcon,
+  FileText,
+  Paperclip
 } from 'lucide-react';
 import SystemModal from './SystemModal';
 import Link from 'next/link';
@@ -68,6 +71,8 @@ export default function CopilotPage() {
   const [modal, setModal] = useState<{ isOpen: boolean, type: 'alert' | 'confirm' | 'prompt', title: string, message: string, defaultValue?: string, onConfirm: (v?: string) => void } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [attachments, setAttachments] = useState<{ name: string, type: string, data: string }[]>([]);
   const sendingRef = useRef(false);
   const searchParams = useSearchParams();
 
@@ -203,8 +208,31 @@ USER CONTEXT (LifeOS Data):
 - Fitness: Avg Steps ${avgSteps}
 - GitHub: ${githubUser || 'Not integrated'}
 
-You are the LifeOS Neural Shell. Response must be strictly professional, data-dense, and formatted for a VS Code terminal. Use markdown tables, code blocks, and bold text. If a command looks like a CLI flag (e.g. --performance), interpret it correctly.`;
+    You are the LifeOS Neural Shell. Response must be strictly professional, data-dense, and formatted for a VS Code terminal. Use markdown tables, code blocks, and bold text. If a command looks like a CLI flag (e.g. --performance), interpret it correctly. If the user provides an image or document, analyze it in the context of their LifeOS data.`;
   }, []);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    Array.from(files).forEach(file => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64Data = (reader.result as string).split(',')[1];
+        setAttachments(prev => [...prev, {
+          name: file.name,
+          type: file.type,
+          data: base64Data
+        }]);
+      };
+      reader.readAsDataURL(file);
+    });
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
 
   const sendMessage = useCallback(async (text?: string) => {
     const msgText = text || input.trim();
@@ -224,7 +252,12 @@ You are the LifeOS Neural Shell. Response must be strictly professional, data-de
 
     sendingRef.current = true;
 
-    const userMsg: ChatMessage = { role: 'user', content: msgText, timestamp: new Date() };
+    const userMsg: ChatMessage = { 
+      role: 'user', 
+      content: msgText, 
+      timestamp: new Date(),
+      attachments: attachments.length > 0 ? [...attachments] : undefined
+    };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     
@@ -252,6 +285,17 @@ You are the LifeOS Neural Shell. Response must be strictly professional, data-de
 
       const context = await getContext();
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`;
+      
+      const userParts: any[] = [{ text: msgText }];
+      attachments.forEach(att => {
+        userParts.push({
+          inline_data: {
+            mime_type: att.type,
+            data: att.data
+          }
+        });
+      });
+
       const body = JSON.stringify({
         contents: [
           { role: 'user', parts: [{ text: context }] },
@@ -259,10 +303,12 @@ You are the LifeOS Neural Shell. Response must be strictly professional, data-de
             role: m.role === 'assistant' ? 'model' : 'user',
             parts: [{ text: m.content }],
           })),
-          { role: 'user', parts: [{ text: msgText }] },
+          { role: 'user', parts: userParts },
         ],
         generationConfig: { temperature: 0.7, maxOutputTokens: 4096 },
       });
+
+      setAttachments([]); // Clear attachments after sending
 
       const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
       
@@ -439,6 +485,23 @@ You are the LifeOS Neural Shell. Response must be strictly professional, data-de
                 <span className="text-[#cccccc] text-[13px] font-bold">$</span>
                 {msg.role === 'user' && <span className="text-[#dcdcdc] text-[13px]">{msg.content}</span>}
               </div>
+
+              {msg.attachments && msg.attachments.length > 0 && (
+                <div className="pl-4 flex flex-wrap gap-2 mb-2">
+                  {msg.attachments.map((att, j) => (
+                    <div key={j} className="bg-[#1e1e1e] border border-[#333333] rounded overflow-hidden">
+                      {att.type.startsWith('image/') ? (
+                        <img src={`data:${att.type};base64,${att.data}`} alt={att.name} className="max-w-[200px] max-h-[150px] object-cover" />
+                      ) : (
+                        <div className="flex items-center gap-2 px-3 py-2 text-[11px] text-[#569cd6]">
+                          <FileText className="w-3.5 h-3.5" />
+                          <span>{att.name}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
               
               {msg.role === 'assistant' && (
                 <div className="pl-4 border-l border-[#333333] mt-2 text-[13px] text-[#dcdcdc] prose prose-invert max-w-none prose-p:my-1 prose-pre:bg-[#1e1e1e] prose-pre:border-[#333333]">
@@ -458,36 +521,63 @@ You are the LifeOS Neural Shell. Response must be strictly professional, data-de
         </div>
 
         {/* Input Bar - VS Code Terminal Style */}
-        <div className="border-t border-[#2b2b2b] bg-[#1e1e1e] p-2 flex items-center gap-3">
-          <div className="flex-1 flex items-center gap-2 bg-[#0c0c0c] border border-[#3c3c3c] rounded px-3 py-1.5 focus-within:border-[#007acc] transition-colors group">
-             <div className="flex items-center gap-1.5">
-                <span className="text-[#4ec9b0] text-[13px] font-bold">medhansh@lifeos</span>
-                <span className="text-[#569cd6] text-[13px]">~/copilot$</span>
-             </div>
-             <input
-               ref={inputRef}
-               autoFocus
-               type="text"
-               value={input}
-               onChange={(e) => setInput(e.target.value)}
-               onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-               className="flex-1 bg-transparent border-none outline-none text-[13px] text-[#dcdcdc] placeholder:text-[#555555]"
-               placeholder="..."
-             />
-             <button onClick={() => sendMessage()} disabled={loading || !input.trim()} className="text-[#858585] hover:text-white disabled:opacity-30">
-               <Send className="w-3.5 h-3.5" />
-             </button>
-          </div>
-          
-          <div className="flex items-center gap-4 px-2">
-             <div className="flex items-center gap-1.5 text-[10px] text-[#858585] uppercase tracking-tighter">
-                <span className="w-2 h-2 rounded-full bg-[#3fb950]" />
-                <span>3.1_FLASH_LITE</span>
-             </div>
-             <div className="flex items-center gap-1.5 text-[10px] text-[#858585] uppercase tracking-tighter">
-                <Square className="w-2.5 h-2.5" />
-                <span>UTF-8</span>
-             </div>
+        <div className="border-t border-[#2b2b2b] bg-[#1e1e1e] p-2 flex flex-col gap-2">
+          {attachments.length > 0 && (
+            <div className="flex flex-wrap gap-2 px-2 py-1">
+              {attachments.map((att, i) => (
+                <div key={i} className="flex items-center gap-2 bg-[#0c0c0c] border border-[#3c3c3c] rounded px-2 py-1 text-[11px] group relative">
+                  {att.type.startsWith('image/') ? <ImageIcon className="w-3 h-3 text-[#4ec9b0]" /> : <FileText className="w-3 h-3 text-[#569cd6]" />}
+                  <span className="max-w-[100px] truncate">{att.name}</span>
+                  <button onClick={() => removeAttachment(i)} className="text-[#858585] hover:text-red-400">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex items-center gap-3">
+            <div className="flex-1 flex items-center gap-2 bg-[#0c0c0c] border border-[#3c3c3c] rounded px-3 py-1.5 focus-within:border-[#007acc] transition-colors group">
+               <div className="flex items-center gap-1.5">
+                  <span className="text-[#4ec9b0] text-[13px] font-bold">medhansh@lifeos</span>
+                  <span className="text-[#569cd6] text-[13px]">~/copilot$</span>
+               </div>
+               <input
+                 ref={inputRef}
+                 autoFocus
+                 type="text"
+                 value={input}
+                 onChange={(e) => setInput(e.target.value)}
+                 onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+                 className="flex-1 bg-transparent border-none outline-none text-[13px] text-[#dcdcdc] placeholder:text-[#555555]"
+                 placeholder="..."
+               />
+               <input 
+                 type="file" 
+                 ref={fileInputRef} 
+                 onChange={handleFileUpload} 
+                 className="hidden" 
+                 multiple 
+                 accept="image/*,application/pdf" 
+               />
+               <button onClick={() => fileInputRef.current?.click()} className="text-[#858585] hover:text-white" title="Attach Image or PDF">
+                 <Paperclip className="w-3.5 h-3.5" />
+               </button>
+               <button onClick={() => sendMessage()} disabled={loading || (!input.trim() && attachments.length === 0)} className="text-[#858585] hover:text-white disabled:opacity-30">
+                 <Send className="w-3.5 h-3.5" />
+               </button>
+            </div>
+            
+            <div className="flex items-center gap-4 px-2">
+               <div className="flex items-center gap-1.5 text-[10px] text-[#858585] uppercase tracking-tighter">
+                  <span className="w-2 h-2 rounded-full bg-[#3fb950]" />
+                  <span>3.1_FLASH_LITE</span>
+               </div>
+               <div className="flex items-center gap-1.5 text-[10px] text-[#858585] uppercase tracking-tighter">
+                  <Square className="w-2.5 h-2.5" />
+                  <span>UTF-8</span>
+               </div>
+            </div>
           </div>
         </div>
       </div>

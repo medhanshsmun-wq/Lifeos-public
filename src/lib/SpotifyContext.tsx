@@ -47,7 +47,8 @@ export const SpotifyProvider = ({ children }: { children: React.ReactNode }) => 
     const settings = await db.settings.toArray();
     if (!settings.length || !settings[0].spotifyAccessToken) return null;
 
-    let { spotifyAccessToken, spotifyRefreshToken, spotifyExpiresAt, spotifyClientId, spotifyClientSecret } = settings[0];
+    const { spotifyAccessToken, spotifyRefreshToken, spotifyExpiresAt, spotifyClientId, spotifyClientSecret } = settings[0];
+    let currentToken = spotifyAccessToken;
 
     if (spotifyExpiresAt && Date.now() > spotifyExpiresAt - 60000) {
       if (!spotifyRefreshToken || !spotifyClientId || !spotifyClientSecret) return null;
@@ -59,9 +60,9 @@ export const SpotifyProvider = ({ children }: { children: React.ReactNode }) => 
         });
         const data = await res.json();
         if (data.access_token) {
-          spotifyAccessToken = data.access_token;
+          currentToken = data.access_token;
           await db.settings.update(settings[0].id!, {
-            spotifyAccessToken,
+            spotifyAccessToken: currentToken,
             spotifyExpiresAt: Date.now() + (data.expires_in * 1000)
           });
         } else {
@@ -109,7 +110,10 @@ export const SpotifyProvider = ({ children }: { children: React.ReactNode }) => 
   }, [getValidToken]);
 
   useEffect(() => {
-    fetchData();
+    const init = async () => {
+      await fetchData();
+    };
+    init();
     const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
   }, [fetchData]);

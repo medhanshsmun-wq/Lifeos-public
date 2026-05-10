@@ -148,6 +148,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: Date;
+  attachments?: { name: string, type: string, data: string }[];
 }
 
 export interface WeeklyReport {
