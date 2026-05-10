@@ -1,0 +1,233 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Project {
+  id           Int         @id @default(autoincrement())
+  title        String
+  description  String
+  notes        String
+  tags         String      // Stored as JSON string or comma-separated
+  category     String
+  techStack    String      // Stored as JSON string
+  projectType  String
+  difficulty   String
+  status       String
+  githubUrl    String
+  deployedUrl  String
+  youtubeUrl   String
+  docsUrl      String
+  links        String      // JSON string: Array<{ title: string; url: string }>
+  files        String      // JSON string: Array<{ name: string; url: string; type: string }>
+  milestones   Milestone[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model Milestone {
+  id        String   @id @default(uuid())
+  title     String
+  completed Boolean  @default(false)
+  dueDate   String?
+  createdAt DateTime @default(now())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId Int
+}
+
+model FinanceEntry {
+  id         Int      @id @default(autoincrement())
+  amount     Float
+  type       String   // 'income' | 'expense'
+  category   String
+  description String
+  date       DateTime
+  aiCategory String?
+}
+
+model FitnessEntry {
+  id             Int      @id @default(autoincrement())
+  date           DateTime
+  steps          Int
+  distance       Float
+  caloriesBurned Int
+  activeMinutes  Int
+  notes          String
+}
+
+model DietEntry {
+  id         Int      @id @default(autoincrement())
+  date       DateTime
+  mealType   String
+  food       String
+  calories   Int
+  protein    Int
+  carbs      Int
+  fat        Int
+  aiBreakdown String
+}
+
+model GymEntry {
+  id          Int           @id @default(autoincrement())
+  date        DateTime
+  muscleGroup String
+  exercises   GymExercise[]
+  isRestDay   Boolean       @default(false)
+  aiSuggestion String?
+}
+
+model GymExercise {
+  id         Int      @id @default(autoincrement())
+  name       String
+  weight     Float
+  sets       Int
+  reps       Int
+  gymEntry   GymEntry @relation(fields: [gymEntryId], references: [id], onDelete: Cascade)
+  gymEntryId Int
+}
+
+model HobbyEntry {
+  id        Int      @id @default(autoincrement())
+  name      String
+  category  String
+  timeSpent Int
+  date      DateTime
+  notes     String
+  milestone String?
+}
+
+model Subject {
+  id               Int               @id @default(autoincrement())
+  name             String
+  instructor       String?
+  semester         String?
+  credits          Int?
+  priority         String
+  syllabusProgress Int               @default(0)
+  notes            String?
+  color            String
+  createdAt        DateTime          @default(now())
+  assignments      StudyAssignment[]
+}
+
+model StudyAssignment {
+  id        Int      @id @default(autoincrement())
+  title     String
+  type      String
+  dueDate   DateTime
+  completed Boolean  @default(false)
+  score     String?
+  notes     String?
+  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  subjectId Int
+}
+
+model StudySession {
+  id            Int      @id @default(autoincrement())
+  subject       String
+  subjectId     Int?
+  topic         String
+  duration      Int
+  date          DateTime
+  notes         String
+  quality       Int
+  focusLevel    Int?
+  studyMethod   String?
+  breakDuration Int?
+}
+
+model HabitEntry {
+  id        Int      @id @default(autoincrement())
+  habitName String
+  completed Boolean
+  date      DateTime
+  streak    Int
+}
+
+model AIConversation {
+  id        Int           @id @default(autoincrement())
+  title     String
+  projectId Int?
+  messages  ChatMessage[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+model ChatMessage {
+  id             Int            @id @default(autoincrement())
+  role           String
+  content        String
+  timestamp      DateTime       @default(now())
+  attachments    String?        // JSON string: Array<{ name: string, type: string, data: string }>
+  conversation   AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId Int
+}
+
+model WeeklyReport {
+  id                Int      @id @default(autoincrement())
+  weekStart         DateTime
+  weekEnd           DateTime
+  summary           String
+  productivityScore Float
+  highlights        String   // JSON string
+  aiInsights        String
+  createdAt         DateTime @default(now())
+}
+
+model TimelineEvent {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String
+  category    String
+  date        DateTime
+  icon        String?
+}
+
+model UserSettings {
+  id                    Int      @id @default(autoincrement())
+  geminiApiKey          String
+  githubToken           String
+  githubUsername        String
+  cloudBackupEnabled    Boolean  @default(false)
+  theme                 String   @default("dark")
+  accentColor           String   @default("#00F5FF")
+  dashboardWidgets      String   // JSON string
+  name                  String
+  avatar                String
+  propFirmAccountsCount Int      @default(1)
+  spotifyClientId       String?
+  spotifyClientSecret   String?
+  spotifyAccessToken    String?
+  spotifyRefreshToken   String?
+  spotifyExpiresAt      BigInt?
+  summerBreakMode       Boolean  @default(false)
+}
+
+model Trade {
+  id            Int      @id @default(autoincrement())
+  ticker        String
+  marketType    String
+  side          String
+  entryPrice    Float
+  exitPrice     Float
+  stopLoss      Float?
+  takeProfit    Float?
+  positionSize  Float
+  riskAmount    Float
+  pnl           Float
+  pnlPercentage Float
+  entryTime     DateTime
+  exitTime      DateTime?
+  status        String
+  strategy      String
+  setupType     String
+  confidence    Int
+  notes         String
+  mistakes      String   // JSON string
+  emotions      String
+  screenshotUrl String?
+  tags          String   // JSON string
+}

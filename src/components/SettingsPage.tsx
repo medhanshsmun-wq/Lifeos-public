@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { db, type UserSettings } from '@/lib/db';
-import { Settings as SettingsIcon, Key, GitBranch, Shield, Palette, User, Save, Check } from 'lucide-react';
+import { serverDb } from '@/lib/serverDb';
+import { Settings as SettingsIcon, Key, GitBranch, Shield, Palette, User, Save, Check, Database, ArrowRight, Loader2 } from 'lucide-react';
 import SystemModal from './SystemModal';
 
 const fi = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0 } };
@@ -11,7 +12,9 @@ const fi = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0 } };
 export default function SettingsPage() {
   const [settings, setSettings] = useState<UserSettings>({ geminiApiKey: '', githubToken: '', githubUsername: '', cloudBackupEnabled: false, theme: 'dark', accentColor: '#00F5FF', dashboardWidgets: ['productivity', 'habits', 'ai-insights', 'recent-activity', 'integrations'], name: '', avatar: '', propFirmAccountsCount: 1, spotifyClientId: '', spotifyClientSecret: '' });
   const [saved, setSaved] = useState(false);
-  const [modal, setModal] = useState<{ isOpen: boolean, type: 'alert' | 'confirm' | 'prompt', title: string, message: string, onConfirm: () => void } | null>(null);
+  const [migrating, setMigrating] = useState(false);
+  const [migrationStatus, setMigrationStatus] = useState<string | null>(null);
+  const [modal, setModal] = useState<{ isOpen: boolean, type: 'alert' | 'confirm' | 'prompt', title: string, message: string, defaultValue?: string, onConfirm: (v?: string) => void } | null>(null);
 
   useEffect(() => {
     db.settings.toArray().then(s => { 
@@ -29,6 +32,42 @@ export default function SettingsPage() {
     await db.settings.put(settings);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  };
+
+  const migrateToBackend = async () => {
+    setModal({
+      isOpen: true,
+      type: 'confirm',
+      title: 'Migrate to Proper Backend',
+      message: 'This will move all your local browser data to the server-side SQLite database. Existing backend data may be overwritten. Proceed?',
+      onConfirm: async () => {
+        setModal(null);
+        setMigrating(true);
+        try {
+          // Iterate over all tables in Dexie
+          const tables = ['projects', 'finance', 'fitness', 'diet', 'gym', 'hobbies', 'study', 'subjects', 'studyAssignments', 'habits', 'conversations', 'weeklyReports', 'timeline', 'settings', 'trades'];
+          
+          for (const tableName of tables) {
+            setMigrationStatus(`Migrating ${tableName}...`);
+            // @ts-ignore
+            const items = await db[tableName].toArray();
+            for (const item of items) {
+              const { id, ...data } = item; // Let backend handle IDs for clean migration if possible, or keep them
+              // @ts-ignore
+              await serverDb[tableName].add(item);
+            }
+          }
+          
+          setMigrationStatus('Migration complete! Refreshing page...');
+          setTimeout(() => window.location.reload(), 2000);
+        } catch (e: any) {
+          console.error(e);
+          setMigrationStatus(`Error: ${e.message}`);
+        } finally {
+          setMigrating(false);
+        }
+      }
+    });
   };
 
   return (
@@ -131,19 +170,33 @@ export default function SettingsPage() {
           </div>
         </motion.div>
 
-        {/* Privacy */}
-        <motion.div variants={fi} className="glass-card p-5 space-y-4">
-          <h3 className="text-sm font-semibold flex items-center gap-2"><Shield className="w-4 h-4 text-[var(--accent-green)]" /> Privacy & Data</h3>
-          <div className="flex items-center justify-between">
-            <div><p className="text-sm text-[var(--text-primary)]">Enable Cloud Backup</p><p className="text-xs text-[var(--text-muted)]">Encrypted optional sync to cloud</p></div>
-            <button onClick={() => setSettings({...settings, cloudBackupEnabled: !settings.cloudBackupEnabled})} className={`w-12 h-6 rounded-full transition-colors duration-200 ${settings.cloudBackupEnabled ? 'bg-[var(--accent-green)]' : 'bg-[var(--bg-hover)]'} relative`}>
-              <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform duration-200 ${settings.cloudBackupEnabled ? 'translate-x-6' : 'translate-x-0.5'}`} />
+        {/* Backend Migration */}
+        <motion.div variants={fi} className="glass-card p-5 border border-amber-500/30 bg-amber-500/5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold flex items-center gap-2 text-amber-500">
+                <Database className="w-4 h-4" /> 
+                Backend Migration
+              </h3>
+              <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
+                You are currently using browser-based storage (IndexedDB). Click below to migrate your data to the 
+                <strong> proper server-side SQLite database</strong> for permanent persistence and multi-device readiness.
+              </p>
+            </div>
+            <button 
+              onClick={migrateToBackend}
+              disabled={migrating}
+              className="shrink-0 px-4 py-2 rounded-xl bg-amber-500 text-black text-xs font-bold hover:bg-amber-400 transition-all flex items-center gap-2 disabled:opacity-50"
+            >
+              {migrating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowRight className="w-3.5 h-3.5" />}
+              {migrating ? 'Migrating...' : 'Migrate Now'}
             </button>
           </div>
-          <div className="p-3 rounded-xl bg-[rgba(34,197,94,0.05)] border border-[rgba(34,197,94,0.1)]">
-            <p className="text-xs text-[var(--accent-green)] font-medium mb-1">🔒 Privacy First</p>
-            <p className="text-[10px] text-[var(--text-tertiary)] leading-relaxed">All data is stored locally in your browser using IndexedDB. Nothing leaves your device unless you explicitly enable cloud backup. All integrations are opt-in and revocable.</p>
-          </div>
+          {migrationStatus && (
+            <div className="mt-4 p-3 rounded-lg bg-black/40 border border-white/5 font-mono text-[10px] text-amber-200">
+              {migrationStatus}
+            </div>
+          )}
         </motion.div>
 
         {/* Save */}
