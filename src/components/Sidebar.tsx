@@ -64,8 +64,8 @@ export default function Sidebar() {
     >
       {/* Logo */}
       <div className="flex items-center gap-3 px-5 h-[var(--header-height)] border-b border-[var(--border-subtle)] flex-shrink-0">
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--accent-cyan)] to-[var(--accent-purple)] flex items-center justify-center flex-shrink-0">
-          <Sparkles className="w-4 h-4 text-white" />
+        <div className="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0">
+          <img src="/LOGO.png" alt="LifeOS Logo" className="w-full h-full object-cover" />
         </div>
         <AnimatePresence>
           {!collapsed && (
