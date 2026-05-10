@@ -34,11 +34,19 @@ export default function SpotifyPage() {
         if (playlistsRes.ok) {
           const pData = await playlistsRes.json();
           setPlaylists(pData.items || []);
+        } else {
+          console.error('Playlists fetch failed', playlistsRes.status);
         }
 
         if (likedRes.ok) {
           const lData = await likedRes.json();
           setLikedSongs(lData.items || []);
+        } else {
+          console.error('Liked songs fetch failed', likedRes.status);
+          // If 403, might be missing scopes
+          if (likedRes.status === 403) {
+            console.warn('Liked songs 403: Possible missing user-library-read scope');
+          }
         }
       } catch (e) {
         console.error('Failed to fetch Spotify user data', e);
@@ -191,32 +199,58 @@ export default function SpotifyPage() {
             </motion.div>
           ) : (
             <motion.div key="liked" variants={container} initial="hidden" animate="show" exit="hidden" className="space-y-2">
-              {likedSongs.map((itemObj, index) => {
-                const track = itemObj.track;
-                return (
-                  <motion.div key={track.id} variants={item} className="group flex items-center gap-4 p-3 rounded-xl hover:bg-[var(--bg-elevated)] transition-colors cursor-pointer" onClick={() => playItem(track.uri, false, index)}>
-                    <div className="w-8 text-center text-xs text-[var(--text-tertiary)] group-hover:hidden">{index + 1}</div>
-                    <div className="w-8 hidden group-hover:flex justify-center text-[#1db954]">
-                      <Play className="w-4 h-4" fill="currentColor" />
-                    </div>
-                    
-                    <img src={track.album.images[0]?.url} alt="" className="w-10 h-10 rounded shadow-sm" />
-                    
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-white truncate group-hover:text-[#1db954] transition-colors">{track.name}</p>
-                      <p className="text-xs text-[var(--text-tertiary)] truncate">{track.artists.map((a: any) => a.name).join(', ')}</p>
-                    </div>
-                    
-                    <div className="hidden md:block w-1/3 min-w-0">
-                      <p className="text-xs text-[var(--text-secondary)] truncate">{track.album.name}</p>
-                    </div>
-                    
-                    <div className="text-xs text-[var(--text-tertiary)] font-mono">
-                      {Math.floor(track.duration_ms / 60000)}:{(Math.floor((track.duration_ms % 60000) / 1000)).toString().padStart(2, '0')}
-                    </div>
-                  </motion.div>
-                );
-              })}
+              {likedSongs.length > 0 ? (
+                likedSongs.map((itemObj, index) => {
+                  const track = itemObj?.track;
+                  if (!track) return null;
+                  
+                  return (
+                    <motion.div key={track.id || index} variants={item} className="group flex items-center gap-4 p-3 rounded-xl hover:bg-[var(--bg-elevated)] transition-colors cursor-pointer" onClick={() => playItem(track.uri, false, index)}>
+                      <div className="w-8 text-center text-xs text-[var(--text-tertiary)] group-hover:hidden">{index + 1}</div>
+                      <div className="w-8 hidden group-hover:flex justify-center text-[#1db954]">
+                        <Play className="w-4 h-4" fill="currentColor" />
+                      </div>
+                      
+                      <div className="w-10 h-10 rounded overflow-hidden bg-white/5 flex-shrink-0">
+                        {track.album?.images?.[0]?.url ? (
+                          <img src={track.album.images[0].url} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Music className="w-4 h-4 text-white/20" />
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-white truncate group-hover:text-[#1db954] transition-colors">{track.name || 'Unknown Track'}</p>
+                        <p className="text-xs text-[var(--text-tertiary)] truncate">
+                          {track.artists?.map((a: any) => a.name).join(', ') || 'Unknown Artist'}
+                        </p>
+                      </div>
+                      
+                      <div className="hidden md:block w-1/3 min-w-0">
+                        <p className="text-xs text-[var(--text-secondary)] truncate">{track.album?.name || 'Unknown Album'}</p>
+                      </div>
+                      
+                      <div className="text-xs text-[var(--text-tertiary)] font-mono">
+                        {track.duration_ms ? (
+                          `${Math.floor(track.duration_ms / 60000)}:${(Math.floor((track.duration_ms % 60000) / 1000)).toString().padStart(2, '0')}`
+                        ) : '--:--'}
+                      </div>
+                    </motion.div>
+                  );
+                })
+              ) : (
+                <div className="py-20 flex flex-col items-center justify-center text-center space-y-4">
+                  <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center">
+                    <Heart className="w-6 h-6 text-white/20" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-white font-medium">No Liked Songs found</p>
+                    <p className="text-sm text-[var(--text-tertiary)] max-w-xs">If you have liked songs on Spotify, they should appear here. Try reconnecting your account if they don't show up.</p>
+                  </div>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
