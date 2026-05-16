@@ -165,22 +165,29 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="p-6 lg:p-8 min-h-full">
+    <div className="p-6 lg:p-8 min-h-full page-enter">
       <motion.div variants={container} initial="hidden" animate="show" className="max-w-[1400px] mx-auto space-y-6">
-        {/* Header */}
+        {/* Command Center Header */}
         <motion.div variants={item} className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-[var(--text-primary)]">
-              {greeting}, <span className="gradient-text">Medhansh</span>
-            </h1>
-            <p className="text-sm text-[var(--text-tertiary)] mt-1 font-mono">
+            <div className="flex items-center gap-3 mb-1">
+              <h1 className="text-2xl lg:text-3xl font-bold">
+                {greeting}, <span className="gradient-text">Medhansh</span>
+              </h1>
+              <span className="badge badge-accent animate-float">
+                <Sparkles className="w-3 h-3 mr-1" /> Command Center
+              </span>
+            </div>
+            <p className="text-sm text-[var(--text-2)] font-mono tracking-wide">
               {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+              <span className="mx-2 text-[var(--text-3)]">•</span>
+              <span className="text-[var(--accent)]">{new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="glass-card-sm px-4 py-2 flex items-center gap-2">
-              <div className="status-dot status-active" />
-              <span className="text-xs text-[var(--text-secondary)] font-mono">System Online</span>
+            <div className="glass-sm px-4 py-2 flex items-center gap-2">
+              <div className="dot dot-active" />
+              <span className="text-xs text-[var(--text-1)] font-mono">Neural Online</span>
             </div>
           </div>
         </motion.div>
@@ -211,7 +218,7 @@ export default function DashboardPage() {
           <StatCard
             icon={<TrendingUp className="w-4 h-4" />}
             label="Trading P&L"
-            value={`₹${stats.totalPnl.toLocaleString()}`}
+            value={`$${stats.totalPnl.toLocaleString()}`}
             sub={`${stats.winRate.toFixed(1)}% Win Rate`}
             color="var(--accent-purple)"
           />

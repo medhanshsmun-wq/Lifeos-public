@@ -22,7 +22,7 @@ const COLORS = ['#00d4ff', '#a855f7', '#ec4899', '#22c55e', '#f97316', '#3b82f6'
 
 function CT({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number }>; label?: string }) {
   if (!active || !payload?.length) return null;
-  return <div className="chart-tooltip"><p className="text-xs text-[var(--text-tertiary)] mb-1">{label}</p><p className="text-sm font-semibold">₹{payload[0].value.toLocaleString()}</p></div>;
+  return <div className="chart-tooltip"><p className="text-xs text-[var(--text-tertiary)] mb-1">{label}</p><p className="text-sm font-semibold">${payload[0].value.toLocaleString()}</p></div>;
 }
 
 export default function FinancePage() {
@@ -173,7 +173,7 @@ function TradingJournal({ trades, onAdd, onUpdate, propFirmCount, onUpdatePropFi
       {journalTab === 'dashboard' && (
         <div className="space-y-6">
           <motion.div variants={fi} className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <StatCard title="Total Net PnL" value={`₹${metrics.totalPnl.toLocaleString()}`} icon={TrendingUp} color={metrics.totalPnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'} />
+            <StatCard title="Total Net PnL" value={`$${metrics.totalPnl.toLocaleString()}`} icon={TrendingUp} color={metrics.totalPnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'} />
             <StatCard title="Win Rate" value={`${metrics.winRate.toFixed(1)}%`} icon={Target} color="var(--accent-cyan)" />
             <StatCard title="Profit Factor" value={metrics.profitFactor.toFixed(2)} icon={Activity} color="var(--accent-purple)" />
             <StatCard title="Prop Multiplier" value={`x${propFirmCount}`} icon={Building2} color="var(--accent-blue)" />
@@ -206,8 +206,8 @@ function TradingJournal({ trades, onAdd, onUpdate, propFirmCount, onUpdatePropFi
                 <Brain className="w-4 h-4 text-[var(--accent-pink)]" /> Performance Insights
               </h3>
               <div className="space-y-4">
-                <InsightRow label="Best Win (Total)" value={`+₹${metrics.bestWin.toLocaleString()}`} color="var(--accent-green)" />
-                <InsightRow label="Worst Loss (Total)" value={`₹${metrics.worstLoss.toLocaleString()}`} color="var(--accent-red)" />
+                <InsightRow label="Best Win (Total)" value={`+$${metrics.bestWin.toLocaleString()}`} color="var(--accent-green)" />
+                <InsightRow label="Worst Loss (Total)" value={`$${metrics.worstLoss.toLocaleString()}`} color="var(--accent-red)" />
                 <InsightRow label="Managed Accounts" value={propFirmCount.toString()} color="var(--accent-cyan)" />
                 <InsightRow label="Avg RR achieved" value={metrics.avgRr.toFixed(2)} color="var(--text-secondary)" />
                 <div className="pt-4 border-t border-[var(--border-subtle)] space-y-2">
@@ -276,7 +276,7 @@ function TradingJournal({ trades, onAdd, onUpdate, propFirmCount, onUpdatePropFi
                       </span>
                     </td>
                     <td className={`font-mono font-bold ${t.pnl >= 0 ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]'}`}>
-                      {t.pnl >= 0 ? '+' : ''}₹{t.pnl.toLocaleString()}
+                      {t.pnl >= 0 ? '+' : ''}${t.pnl.toLocaleString()}
                     </td>
                     <td className="text-[var(--text-secondary)] font-mono">{(t.pnl / t.riskAmount).toFixed(2)}R</td>
                     <td className="text-[var(--text-tertiary)]">{new Date(t.entryTime).toLocaleDateString()}</td>
@@ -402,7 +402,7 @@ function TradeForm({ onSave, propFirmCount }: { onSave: (e: Omit<Trade, 'id'>) =
       </div>
       <div className="grid grid-cols-2 gap-4">
         <FormInput label="Size (per account)" value={form.positionSize} onChange={v => setForm({...form, positionSize: v})} type="number" placeholder="1.0" />
-        <FormInput label="Risk (₹ per account)" value={form.riskAmount} onChange={v => setForm({...form, riskAmount: v})} type="number" placeholder="1000" />
+        <FormInput label="Risk ($ per account)" value={form.riskAmount} onChange={v => setForm({...form, riskAmount: v})} type="number" placeholder="1000" />
       </div>
       <div className="p-3 rounded-xl bg-[var(--accent-cyan)]/5 border border-[var(--accent-cyan)]/20">
         <p className="text-[10px] font-bold text-[var(--accent-cyan)] uppercase tracking-widest mb-1">Prop Multiplier Active</p>

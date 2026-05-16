@@ -56,9 +56,16 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="min-h-full bg-[var(--bg-primary)] text-[var(--text-primary)] noise-bg overflow-x-hidden selection:bg-[var(--accent-blue)]/30">
-        <div className="orb-1" />
-        <div className="orb-2" />
+      <body className="min-h-full bg-[var(--bg-0)] text-[var(--text-0)] overflow-x-hidden">
+        {/* V3 Ambient Background System */}
+        <div className="ambient-bg" id="ambient-bg">
+          <div className="mesh-orb mesh-orb-1" />
+          <div className="mesh-orb mesh-orb-2" />
+          <div className="mesh-orb mesh-orb-3" />
+          <div className="spotify-orb" id="spotify-orb" />
+        </div>
+        <div className="neural-grid" />
+        <div className="noise" />
         {children}
         <script
           dangerouslySetInnerHTML={{

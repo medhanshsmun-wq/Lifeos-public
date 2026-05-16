@@ -177,7 +177,7 @@ export interface UserSettings {
   githubToken: string;
   githubUsername: string;
   cloudBackupEnabled: boolean;
-  theme: 'dark' | 'light';
+  theme: string;
   accentColor: string;
   dashboardWidgets: string[];
   name: string;
@@ -286,7 +286,7 @@ export async function initializeDb() {
       githubToken: '',
       githubUsername: '',
       cloudBackupEnabled: false,
-      theme: 'dark',
+      theme: 'midnight',
       accentColor: '#00F5FF',
       dashboardWidgets: ['productivity', 'habits', 'ai-insights', 'recent-activity', 'integrations'],
       name: 'User',

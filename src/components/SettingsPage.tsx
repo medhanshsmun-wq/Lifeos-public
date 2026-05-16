@@ -43,23 +43,60 @@ export default function SettingsPage() {
       onConfirm: async () => {
         setModal(null);
         setMigrating(true);
+        const errors: string[] = [];
+        let totalMigrated = 0;
         try {
-          // Iterate over all tables in Dexie
-          const tables = ['projects', 'finance', 'fitness', 'diet', 'gym', 'hobbies', 'study', 'subjects', 'studyAssignments', 'habits', 'conversations', 'weeklyReports', 'timeline', 'settings', 'trades'];
+          // Map of Dexie table names → serverDb table names
+          const tables: Array<{ dexie: string; server: string }> = [
+            { dexie: 'settings', server: 'settings' },
+            { dexie: 'projects', server: 'projects' },
+            { dexie: 'finance', server: 'finance' },
+            { dexie: 'fitness', server: 'fitness' },
+            { dexie: 'diet', server: 'diet' },
+            { dexie: 'gym', server: 'gym' },
+            { dexie: 'hobbies', server: 'hobbies' },
+            { dexie: 'subjects', server: 'subjects' },
+            { dexie: 'study', server: 'study' },
+            { dexie: 'studyAssignments', server: 'studyAssignments' },
+            { dexie: 'habits', server: 'habits' },
+            { dexie: 'conversations', server: 'conversations' },
+            { dexie: 'weeklyReports', server: 'weeklyReports' },
+            { dexie: 'timeline', server: 'timeline' },
+            { dexie: 'trades', server: 'trades' },
+          ];
           
-          for (const tableName of tables) {
+          for (const { dexie: tableName, server: serverName } of tables) {
             setMigrationStatus(`Migrating ${tableName}...`);
-            // @ts-ignore
-            const items = await db[tableName].toArray();
-            for (const item of items) {
-              const { id, ...data } = item; // Let backend handle IDs for clean migration if possible, or keep them
+            try {
               // @ts-ignore
-              await serverDb[tableName].add(item);
+              const items = await db[tableName].toArray();
+              let tableCount = 0;
+              for (const item of items) {
+                try {
+                  // The API route now handles all data transformation
+                  // (stripping IDs, serializing arrays to JSON, converting relations)
+                  // @ts-ignore
+                  await serverDb[serverName].add(item);
+                  tableCount++;
+                } catch (itemErr: any) {
+                  console.warn(`Failed to migrate ${tableName} item:`, itemErr);
+                  errors.push(`${tableName} item: ${itemErr.message?.slice(0, 80)}`);
+                }
+              }
+              totalMigrated += tableCount;
+              setMigrationStatus(`Migrated ${tableName}: ${tableCount}/${items.length} items`);
+            } catch (tableErr: any) {
+              console.error(`Failed to migrate table ${tableName}:`, tableErr);
+              errors.push(`${tableName} table: ${tableErr.message?.slice(0, 80)}`);
             }
           }
           
-          setMigrationStatus('Migration complete! Refreshing page...');
-          setTimeout(() => window.location.reload(), 2000);
+          if (errors.length > 0) {
+            setMigrationStatus(`Migration done with ${errors.length} warnings. ${totalMigrated} items migrated.\n\nWarnings:\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? `\n...and ${errors.length - 5} more` : ''}`);
+          } else {
+            setMigrationStatus(`Migration complete! ${totalMigrated} items migrated. Refreshing page...`);
+            setTimeout(() => window.location.reload(), 2000);
+          }
         } catch (e: any) {
           console.error(e);
           setMigrationStatus(`Error: ${e.message}`);
@@ -123,10 +160,40 @@ export default function SettingsPage() {
           <p className="text-[10px] text-[var(--text-muted)]">Set redirect URI to <code className="text-[var(--accent-cyan)] font-mono">http://127.0.0.1:3000/api/auth/callback/spotify</code> in your <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noreferrer" className="text-[var(--accent-cyan)] hover:underline">Spotify Developer Dashboard</a>.</p>
         </motion.div>
 
-        {/* Customization */}
-        <motion.div variants={fi} className="glass-card p-5 space-y-4">
-          <h3 className="text-sm font-semibold flex items-center gap-2"><Palette className="w-4 h-4 text-[var(--accent-cyan)]" /> Customization</h3>
+        {/* System Configuration */}
+        <motion.div variants={fi} className="glass p-5 space-y-5">
+          <h3 className="text-sm font-semibold flex items-center gap-2"><Palette className="w-4 h-4 text-[var(--accent)]" /> Appearance</h3>
           
+          <div>
+            <label className="text-xs font-medium text-[var(--text-1)] mb-3 block">Theme</label>
+            <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+              {[
+                { id: 'midnight', label: 'Midnight', colors: ['#020208','#08081a','#00d4ff'] },
+                { id: 'ocean', label: 'Ocean', colors: ['#010c18','#041a30','#06b6d4'] },
+                { id: 'forest', label: 'Forest', colors: ['#020d06','#061a0e','#34d399'] },
+                { id: 'sunset', label: 'Sunset', colors: ['#0a0304','#1a080a','#f97316'] },
+                { id: 'neon', label: 'Neon', colors: ['#06010c','#10041c','#00ff88'] },
+                { id: 'arctic', label: 'Arctic', colors: ['#060a10','#0c1520','#7dd3fc'] },
+                { id: 'phantom', label: 'Phantom', colors: ['#08040c','#140a1c','#c084fc'] },
+                { id: 'solar', label: 'Solar', colors: ['#0c0802','#1a1004','#fbbf24'] },
+                { id: 'crimson', label: 'Crimson', colors: ['#0c0204','#1c040a','#fb7185'] },
+                { id: 'matrix', label: 'Matrix', colors: ['#000800','#001000','#00ff41'] },
+                { id: 'mono', label: 'Mono', colors: ['#0a0a0a','#141414','#a0a0a0'] },
+                { id: 'aurora', label: 'Aurora', colors: ['#040810','#081020','#34d399'] },
+              ].map(theme => (
+                <button key={theme.id}
+                  onClick={() => { setSettings({...settings, theme: theme.id}); document.documentElement.setAttribute('data-theme', theme.id); }}
+                  className={`flex flex-col items-center gap-1.5 p-2 rounded-xl border transition-all ${settings.theme === theme.id ? 'border-[var(--accent)] bg-[var(--accent)]/5 scale-105' : 'border-[var(--border)] bg-white/[.02] opacity-50 hover:opacity-100'}`}
+                >
+                  <div className="flex gap-px rounded-md overflow-hidden w-full h-5">
+                    {theme.colors.map((c, i) => <div key={i} className="flex-1" style={{ backgroundColor: c }} />)}
+                  </div>
+                  <span className="text-[9px] font-medium">{theme.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div>
             <label className="text-xs font-medium text-[var(--text-secondary)] mb-3 block">Accent Color</label>
             <div className="flex flex-wrap gap-3">
