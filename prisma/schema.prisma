@@ -4,6 +4,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
+  url      = env("DATABASE_URL")
 }
 
 model Project {
@@ -198,6 +199,8 @@ model UserSettings {
   name                  String
   avatar                String
   propFirmAccountsCount Int      @default(1)
+  propFirmName          String?
+  propFirmSize          Int?
   spotifyClientId       String?
   spotifyClientSecret   String?
   spotifyAccessToken    String?
@@ -230,4 +233,6 @@ model Trade {
   emotions      String
   screenshotUrl String?
   tags          String   // JSON string
+  isPaperTrade  Boolean  @default(false)
+  propFirm      String?
 }

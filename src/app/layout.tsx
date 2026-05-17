@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "LifeOS — AI-Powered Personal Operating System",
+  title: "LifeOS — Personal Operating System",
   description:
-    "A futuristic AI-powered operating system for managing life, projects, productivity, analytics, and personal growth through an intelligent local-first dashboard.",
+    "A minimalist personal operating system for managing life, projects, productivity, analytics, and personal growth.",
   keywords: [
     "LifeOS",
     "AI dashboard",
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "LifeOS AI",
+    title: "LifeOS",
     startupImage: "/icon.png",
   },
   formatDetection: {
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
     icon: "/LOGO.png",
     apple: "/LOGO.png",
   },
-  themeColor: "#050505",
+  themeColor: "#000000",
   viewport: {
     width: "device-width",
     initialScale: 1,
@@ -52,21 +52,20 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap"
           rel="stylesheet"
         />
       </head>
-      <body className="min-h-full bg-[var(--bg-0)] text-[var(--text-0)] overflow-x-hidden">
-        {/* V3 Ambient Background System */}
+      <body className="h-full bg-black text-white overflow-hidden">
+        {/* Ambient Background — simplified */}
         <div className="ambient-bg" id="ambient-bg">
           <div className="mesh-orb mesh-orb-1" />
           <div className="mesh-orb mesh-orb-2" />
-          <div className="mesh-orb mesh-orb-3" />
           <div className="spotify-orb" id="spotify-orb" />
         </div>
-        <div className="neural-grid" />
-        <div className="noise" />
-        {children}
+        <div className="relative z-10 h-full w-full">
+          {children}
+        </div>
         <script
           dangerouslySetInnerHTML={{
             __html: `

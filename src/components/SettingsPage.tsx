@@ -10,7 +10,7 @@ import SystemModal from './SystemModal';
 const fi = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0 } };
 
 export default function SettingsPage() {
-  const [settings, setSettings] = useState<UserSettings>({ geminiApiKey: '', githubToken: '', githubUsername: '', cloudBackupEnabled: false, theme: 'dark', accentColor: '#00F5FF', dashboardWidgets: ['productivity', 'habits', 'ai-insights', 'recent-activity', 'integrations'], name: '', avatar: '', propFirmAccountsCount: 1, spotifyClientId: '', spotifyClientSecret: '' });
+  const [settings, setSettings] = useState<UserSettings>({ geminiApiKey: '', githubToken: '', githubUsername: '', cloudBackupEnabled: false, theme: 'dark', accentColor: '#00F5FF', dashboardWidgets: ['todos', 'productivity', 'habits', 'ai-insights', 'recent-activity', 'integrations'], name: '', avatar: '', propFirmAccountsCount: 1, spotifyClientId: '', spotifyClientSecret: '' });
   const [saved, setSaved] = useState(false);
   const [migrating, setMigrating] = useState(false);
   const [migrationStatus, setMigrationStatus] = useState<string | null>(null);
@@ -21,7 +21,7 @@ export default function SettingsPage() {
       if (s.length) {
         setSettings({
           ...s[0],
-          dashboardWidgets: s[0].dashboardWidgets || ['productivity', 'habits', 'ai-insights', 'recent-activity', 'integrations'],
+          dashboardWidgets: s[0].dashboardWidgets || ['todos', 'productivity', 'habits', 'ai-insights', 'recent-activity', 'integrations'],
           accentColor: s[0].accentColor || '#00F5FF'
         });
       } 
@@ -108,7 +108,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="p-6 lg:p-8 grid-bg min-h-full">
+    <div className="p-6 lg:p-8 min-h-full">
       <motion.div initial="hidden" animate="show" variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } }} className="max-w-[800px] mx-auto space-y-6">
         <motion.div variants={fi} className="flex items-center gap-3">
           <div className="p-2.5 rounded-xl bg-[rgba(136,136,170,0.1)]"><SettingsIcon className="w-5 h-5 text-[var(--text-secondary)]" /></div>
@@ -212,6 +212,7 @@ export default function SettingsPage() {
             <label className="text-xs font-medium text-[var(--text-secondary)] mb-3 block">Visible Widgets</label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {[
+                { id: 'todos', label: 'Daily To-Do List' },
                 { id: 'productivity', label: 'Productivity Score' },
                 { id: 'habits', label: 'Habit Tracker' },
                 { id: 'ai-insights', label: 'AI Insights' },
@@ -290,7 +291,7 @@ export default function SettingsPage() {
                     db.diet.clear(), db.gym.clear(), db.hobbies.clear(), 
                     db.study.clear(), db.subjects.clear(), db.studyAssignments.clear(),
                     db.habits.clear(), db.conversations.clear(), db.weeklyReports.clear(), 
-                    db.timeline.clear(), db.settings.clear(), db.trades.clear()
+                    db.timeline.clear(), db.settings.clear(), db.trades.clear(), db.todos.clear()
                   ]);
                   setModal({
                     isOpen: true,

@@ -25,7 +25,7 @@ export default function HobbiesPage() {
   const sessions = hobbies.length;
 
   return (
-    <div className="p-6 lg:p-8 grid-bg min-h-full">
+    <div className="p-6 lg:p-8 min-h-full">
       <motion.div initial="hidden" animate="show" variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } }} className="max-w-[1400px] mx-auto space-y-6">
         <motion.div variants={fi} className="flex items-center justify-between">
           <div className="flex items-center gap-3"><div className="p-2.5 rounded-xl bg-[rgba(236,72,153,0.1)]"><Gamepad2 className="w-5 h-5 text-[var(--accent-pink)]" /></div><div><h1 className="text-2xl font-bold">Hobbies</h1><p className="text-xs text-[var(--text-tertiary)] font-mono">Track your passions & creative pursuits</p></div></div>

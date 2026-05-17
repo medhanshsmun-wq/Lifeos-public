@@ -97,7 +97,7 @@ export default function GithubPage() {
 
   if (!username) {
     return (
-      <div className="p-6 lg:p-8 grid-bg min-h-full flex flex-col items-center justify-center">
+      <div className="p-6 lg:p-8 min-h-full flex flex-col items-center justify-center">
         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="glass-card p-8 max-w-md w-full text-center">
           <div className="w-16 h-16 rounded-full bg-[rgba(255,255,255,0.05)] flex items-center justify-center mx-auto mb-4">
             <GitBranch className="w-8 h-8 text-[var(--text-primary)]" />
@@ -118,7 +118,7 @@ export default function GithubPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8 grid-bg min-h-full">
+    <div className="p-6 lg:p-8 min-h-full">
       <motion.div variants={container} initial="hidden" animate="show" className="max-w-[1200px] mx-auto space-y-6">
         {/* Header */}
         <motion.div variants={item} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">

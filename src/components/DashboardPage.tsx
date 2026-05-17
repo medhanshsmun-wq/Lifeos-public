@@ -3,13 +3,12 @@
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { db, type Project, type FitnessEntry, type HabitEntry, type TimelineEvent } from '@/lib/db';
+import { db, type Project, type FitnessEntry, type HabitEntry, type TimelineEvent, type StudySession, type UserSettings, type Trade, type Todo } from '@/lib/db';
 import {
   Activity,
   TrendingUp,
   Footprints,
   Flame,
-  Wallet,
   FolderKanban,
   Clock,
   Zap,
@@ -17,25 +16,20 @@ import {
   Target,
   ArrowUpRight,
   ArrowDownRight,
-  Calendar,
-  Brain,
   Link as LinkIcon,
-  Sparkles,
   CandlestickChart,
+  ChevronRight,
 } from 'lucide-react';
 import {
   AreaChart,
   Area,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  RadialBarChart,
-  RadialBar,
 } from 'recharts';
 import SpotifyWidget from './SpotifyWidget';
+import TodoWidget from './TodoWidget';
 
 const container = {
   hidden: { opacity: 0 },
@@ -46,8 +40,8 @@ const container = {
 };
 
 const item = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeInOut' as const } },
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' as const } },
 };
 
 // Custom Tooltip
@@ -55,9 +49,9 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
   if (!active || !payload?.length) return null;
   return (
     <div className="chart-tooltip">
-      <p className="text-xs text-[var(--text-tertiary)] mb-1">{label}</p>
+      <p className="text-xs text-[rgba(255,255,255,0.4)] mb-1">{label}</p>
       {payload.map((p, i) => (
-        <p key={i} className="text-sm font-semibold text-[var(--text-primary)]">
+        <p key={i} className="text-sm font-semibold text-white">
           {typeof p.value === 'number' ? p.value.toLocaleString() : p.value}
         </p>
       ))}
@@ -67,40 +61,55 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
 
 export default function DashboardPage() {
   const [projects, setProjects] = useState<Project[]>([]);
-  const [trades, setTrades] = useState<any[]>([]);
+  const [trades, setTrades] = useState<Trade[]>([]);
   const [fitness, setFitness] = useState<FitnessEntry[]>([]);
   const [habits, setHabits] = useState<HabitEntry[]>([]);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
+  const [studySessions, setStudySessions] = useState<StudySession[]>([]);
+  const [todos, setTodos] = useState<Todo[]>([]);
+  const [settings, setSettings] = useState<UserSettings | null>(null);
   const [githubLive, setGithubLive] = useState(false);
-  const [greeting, setGreeting] = useState('');
-  const [activeWidgets, setActiveWidgets] = useState<string[]>(['productivity', 'habits', 'ai-insights', 'recent-activity', 'integrations']);
-
-  useEffect(() => {
+  const [greeting] = useState(() => {
     const hour = new Date().getHours();
-    if (hour < 12) setGreeting('Good morning');
-    else if (hour < 17) setGreeting('Good afternoon');
-    else setGreeting('Good evening');
-
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  });
+  const [activeWidgets, setActiveWidgets] = useState<string[]>(['todos', 'productivity', 'habits', 'ai-insights', 'recent-activity', 'integrations']);
+  useEffect(() => {
     const load = async () => {
-      const [p, t, fit, h, timelineData, s] = await Promise.all([
+      const [p, t, fit, h, timelineData, s, study, todoData] = await Promise.all([
         db.projects.toArray(),
         db.trades.toArray(),
         db.fitness.orderBy('date').reverse().limit(14).toArray(),
         db.habits.toArray(),
         db.timeline.orderBy('date').reverse().limit(6).toArray(),
         db.settings.toArray(),
+        db.study.toArray(),
+        db.todos.toArray(),
       ]);
       setProjects(p);
       setTrades(t);
       setFitness(fit.reverse());
       setHabits(h);
       setTimeline(timelineData);
+      setStudySessions(study);
+      setTodos(todoData);
       if (s[0]) {
+        setSettings(s[0]);
         if (s[0].githubToken) setGithubLive(true);
-        if (s[0].dashboardWidgets) setActiveWidgets(s[0].dashboardWidgets);
-        if (s[0].accentColor) {
-          document.documentElement.style.setProperty('--accent-cyan', s[0].accentColor);
+        
+        let w = s[0].dashboardWidgets || ['todos', 'productivity', 'habits', 'recent-activity', 'integrations'];
+        const wideWidgets = ['activity-overview', 'trading-equity', 'active-projects'];
+        const missing = wideWidgets.filter(ww => !w.includes(ww));
+        if (missing.length > 0) {
+          w = [...missing, ...w];
         }
+        if (!w.includes('spotify')) {
+          w.push('spotify');
+        }
+        w = w.filter(id => id !== 'ai-insights');
+        setActiveWidgets(w);
       }
     };
     load();
@@ -111,8 +120,9 @@ export default function DashboardPage() {
     const activeProjects = projects.filter(p => p.status === 'Ongoing').length;
     const finishedProjects = projects.filter(p => p.status === 'Finished').length;
 
-    const totalPnl = trades.reduce((s, t) => s + (t.pnl || 0), 0);
-    const winRate = trades.length > 0 ? (trades.filter(t => t.pnl > 0).length / trades.length) * 100 : 0;
+    const realTrades = trades.filter(t => !t.isPaperTrade);
+    const totalPnl = realTrades.reduce((s, t) => s + (t.pnl || 0), 0);
+    const winRate = realTrades.length > 0 ? (realTrades.filter(t => t.pnl > 0).length / realTrades.length) * 100 : 0;
 
     const todaySteps = fitness.length > 0 ? fitness[fitness.length - 1]?.steps || 0 : 0;
     const totalSteps = fitness.reduce((s, f) => s + f.steps, 0);
@@ -128,25 +138,54 @@ export default function DashboardPage() {
     const totalToday = todayHabits.length;
     const habitRate = totalToday > 0 ? Math.round((completedToday / totalToday) * 100) : 0;
 
+    const todayTodos = todos.filter(t => {
+      const d = new Date(t.date);
+      const today = new Date();
+      return d.toDateString() === today.toDateString();
+    });
+    const completedTodos = todayTodos.filter(t => t.completed).length;
+    const totalTodos = todayTodos.length;
+    const todoRate = totalTodos > 0 ? (completedTodos / totalTodos) * 100 : (completedToday > 0 ? 100 : 0); // fallback
+
     // Productivity score (composite)
-    const projectScore = Math.min((activeProjects + finishedProjects) * 10, 30);
-    const habitScore = Math.min(habitRate * 0.4, 40);
-    const fitnessScore = Math.min(avgSteps / 250, 30);
-    const productivityScore = Math.min(Math.round(projectScore + habitScore + fitnessScore), 100);
+    let productivityScore = 0;
+    
+    if (settings?.summerBreakMode) {
+      // Original calculation (no study)
+      const projectScore = Math.min((activeProjects + finishedProjects) * 5, 20);
+      const habitScore = Math.min(habitRate * 0.3, 30);
+      const fitnessScore = Math.min(avgSteps / 300, 25);
+      const todoScore = Math.min(todoRate * 0.25, 25);
+      productivityScore = Math.min(Math.round(projectScore + habitScore + fitnessScore + todoScore), 100);
+    } else {
+      // Include study score
+      // eslint-disable-next-line react-hooks/purity
+      const now = Date.now();
+      const last7DaysStudy = studySessions.filter(s => new Date(s.date).getTime() > now - 7 * 24 * 60 * 60 * 1000);
+      const recentStudyMinutes = last7DaysStudy.reduce((sum, s) => sum + s.duration, 0);
+      
+      const projectScore = Math.min((activeProjects + finishedProjects) * 5, 20);
+      const habitScore = Math.min(habitRate * 0.2, 20);
+      const fitnessScore = Math.min(avgSteps / 400, 20);
+      const studyScore = Math.min((recentStudyMinutes / 60) * 10, 20); // Max 20 pts for 2 hours of study
+      const todoScore = Math.min(todoRate * 0.2, 20);
+      
+      productivityScore = Math.min(Math.round(projectScore + habitScore + fitnessScore + studyScore + todoScore), 100);
+    }
 
     return {
       activeProjects, finishedProjects, totalPnl, winRate,
       todaySteps, avgSteps, totalCalories, habitRate, productivityScore,
       completedToday, totalToday,
     };
-  }, [projects, trades, fitness, habits]);
+  }, [projects, trades, fitness, habits, studySessions, settings, todos]);
 
   // Chart data
-  const stepsChartData = fitness.map((f, i) => ({
+  const stepsChartData = useMemo(() => fitness.map((f, i) => ({
     day: `D${i + 1}`,
     steps: f.steps,
     calories: f.caloriesBurned,
-  }));
+  })), [fitness]);
 
   const pnlCurveData = useMemo(() => {
     let running = 0;
@@ -156,314 +195,335 @@ export default function DashboardPage() {
     });
   }, [trades]);
 
-  const productivityRadial = [
-    { name: 'score', value: stats.productivityScore, fill: 'url(#gradientRadial)' },
-  ];
+  const [draggedItem, setDraggedItem] = useState<number | null>(null);
 
-  const aiRecommendations = [
-    { icon: Brain, text: 'AI insights are generating based on your current data patterns...', color: 'var(--accent-purple)' }
-  ];
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedItem(index);
+    e.dataTransfer.effectAllowed = 'move';
+    // Small delay to allow the drag image to be generated before we potentially style the original item
+    setTimeout(() => {
+      // Optional: set dragging state
+    }, 0);
+  };
+
+  const handleDragEnter = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedItem === null || draggedItem === index) return;
+    
+    const newOrder = [...activeWidgets];
+    const item = newOrder[draggedItem];
+    newOrder.splice(draggedItem, 1);
+    newOrder.splice(index, 0, item);
+    
+    setActiveWidgets(newOrder);
+    setDraggedItem(index);
+  };
+
+  const handleDragEnd = async () => {
+    setDraggedItem(null);
+    if (settings?.id) {
+      await db.settings.update(settings.id, { dashboardWidgets: activeWidgets });
+    }
+  };
+
+  const renderWidget = (id: string) => {
+    switch (id) {
+      case 'activity-overview':
+        return (
+          <div className="glass-card p-5 h-full cursor-grab active:cursor-grabbing">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Activity className="w-4 h-4 text-[#6ee7b7]" />
+                <h3 className="text-sm font-semibold text-white">Activity Overview</h3>
+              </div>
+              <span className="text-[10px] font-medium text-[rgba(255,255,255,0.35)] tracking-[0.15em] uppercase">14 days</span>
+            </div>
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={stepsChartData}>
+                <defs>
+                  <linearGradient id="stepsGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#6ee7b7" stopOpacity={0.25} />
+                    <stop offset="100%" stopColor="#6ee7b7" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="day" axisLine={false} tickLine={false} />
+                <YAxis axisLine={false} tickLine={false} width={40} />
+                <Tooltip content={<ChartTooltip />} />
+                <Area type="monotone" dataKey="steps" stroke="#6ee7b7" strokeWidth={2} fill="url(#stepsGrad)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        );
+      case 'trading-equity':
+        return (
+          <div className="glass-card p-5 h-full cursor-grab active:cursor-grabbing">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <CandlestickChart className="w-4 h-4 text-[#a78bfa]" />
+                <h3 className="text-sm font-semibold text-white">Trading Equity Curve</h3>
+              </div>
+              <span className="text-[10px] font-medium text-[rgba(255,255,255,0.35)] tracking-[0.15em] uppercase">Last 14</span>
+            </div>
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={pnlCurveData}>
+                <defs>
+                  <linearGradient id="pnlGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#a78bfa" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="#a78bfa" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="day" axisLine={false} tickLine={false} />
+                <YAxis axisLine={false} tickLine={false} width={50} />
+                <Tooltip content={<ChartTooltip />} />
+                <Area type="monotone" dataKey="pnl" stroke="#a78bfa" strokeWidth={2} fill="url(#pnlGrad)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        );
+      case 'active-projects':
+        return (
+          <div className="glass-card p-5 h-full cursor-grab active:cursor-grabbing">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <FolderKanban className="w-4 h-4 text-[#60a5fa]" />
+                <h3 className="text-sm font-semibold text-white">Active Projects</h3>
+              </div>
+              <Link href="/projects" className="text-xs text-[#6ee7b7] hover:underline flex items-center gap-1">
+                View all <ChevronRight className="w-3 h-3" />
+              </Link>
+            </div>
+            <div className="space-y-2">
+              {projects.filter(p => p.status === 'Ongoing' || p.status === 'Planned').slice(0, 4).map((proj, i) => (
+                <div key={proj.id ?? i} className="flex items-center justify-between p-3 rounded-[14px] bg-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.05)] transition-colors border border-[rgba(255,255,255,0.04)]">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div
+                      className="w-2 h-2 rounded-full flex-shrink-0"
+                      style={{
+                        background: proj.status === 'Ongoing' ? '#6ee7b7' : '#fbbf24',
+                        boxShadow: proj.status === 'Ongoing' ? '0 0 6px rgba(110,231,183,0.4)' : '0 0 6px rgba(251,191,36,0.4)',
+                      }}
+                    />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-white truncate">{proj.title}</p>
+                      <p className="text-[10px] text-[rgba(255,255,255,0.30)] truncate">{proj.techStack.join(', ')}</p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-medium px-2.5 py-1 rounded-full" style={{
+                    background: proj.status === 'Ongoing' ? 'rgba(110,231,183,0.08)' : 'rgba(251,191,36,0.08)',
+                    color: proj.status === 'Ongoing' ? '#6ee7b7' : '#fbbf24',
+                  }}>
+                    {proj.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      case 'spotify':
+        return <div className="h-full min-h-[200px] cursor-grab active:cursor-grabbing"><SpotifyWidget /></div>;
+      case 'todos':
+        return <div className="h-full cursor-grab active:cursor-grabbing"><TodoWidget /></div>;
+      case 'productivity':
+        return (
+          <div className="glass-card p-5 h-full cursor-grab active:cursor-grabbing flex flex-col">
+            <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+              <Target className="w-4 h-4 text-[#6ee7b7]" />
+              Productivity Score
+            </h3>
+            <div className="flex flex-1 items-center justify-center py-4">
+              <div className="relative w-32 h-32">
+                <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90">
+                  <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="8" />
+                  <circle cx="60" cy="60" r="50" fill="none" stroke="#6ee7b7" strokeWidth="8" strokeLinecap="round"
+                    strokeDasharray={`${2 * Math.PI * 50}`}
+                    strokeDashoffset={`${2 * Math.PI * 50 * (1 - stats.productivityScore / 100)}`}
+                    style={{ transition: 'stroke-dashoffset 1s ease-out' }}
+                  />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-3xl font-bold text-white">{stats.productivityScore}</span>
+                  <span className="text-[10px] text-[rgba(255,255,255,0.35)]">/ 100</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      case 'habits':
+        return (
+          <div className="glass-card p-5 h-full cursor-grab active:cursor-grabbing">
+            <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+              <Flame className="w-4 h-4 text-[#f472b6]" />
+              Today&apos;s Habits
+            </h3>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-2xl font-bold text-white">{stats.completedToday}/{stats.totalToday}</span>
+              <span className="text-xs font-medium px-2.5 py-1 rounded-full" style={{
+                background: stats.habitRate >= 70 ? 'rgba(110,231,183,0.08)' : 'rgba(251,191,36,0.08)',
+                color: stats.habitRate >= 70 ? '#6ee7b7' : '#fbbf24',
+              }}>{stats.habitRate}%</span>
+            </div>
+            <div className="w-full h-1.5 rounded-full bg-[rgba(255,255,255,0.04)] overflow-hidden">
+              <motion.div
+                className="h-full rounded-full"
+                style={{ background: 'linear-gradient(90deg, #6ee7b7, #34d399)' }}
+                initial={{ width: 0 }}
+                animate={{ width: `${stats.habitRate}%` }}
+                transition={{ duration: 1, delay: 0.5 }}
+              />
+            </div>
+          </div>
+        );
+      case 'recent-activity':
+        return (
+          <div className="glass-card p-5 h-full cursor-grab active:cursor-grabbing">
+            <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+              <Clock className="w-4 h-4 text-[#6ee7b7]" />
+              Recent Activity
+            </h3>
+            <div className="space-y-3">
+              {timeline.map((event, i) => (
+                <div key={event.id ?? i} className="flex gap-3">
+                  <div className="flex flex-col items-center">
+                    <div
+                      className="w-1.5 h-1.5 rounded-full mt-1.5"
+                      style={{
+                        background: event.category === 'project' ? '#60a5fa' : event.category === 'fitness' ? '#6ee7b7' : event.category === 'study' ? '#fbbf24' : '#a78bfa',
+                      }}
+                    />
+                    {i < timeline.length - 1 && <div className="w-px flex-1 bg-[rgba(255,255,255,0.06)] mt-1" />}
+                  </div>
+                  <div className="pb-3">
+                    <p className="text-xs font-medium text-white">{event.title}</p>
+                    <p className="text-[10px] text-[rgba(255,255,255,0.30)] mt-0.5">
+                      {new Date(event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      case 'integrations':
+        return (
+          <div className="glass-card p-5 h-full cursor-grab active:cursor-grabbing">
+            <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+              <LinkIcon className="w-4 h-4 text-[#6ee7b7]" />
+              Integrations
+            </h3>
+            <Link href="/github" draggable={false} className="flex items-center justify-between p-3 rounded-[14px] bg-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.05)] transition-colors border border-[rgba(255,255,255,0.04)] group">
+              <div className="flex items-center gap-3">
+                <div className="p-1.5 rounded-lg bg-[rgba(255,255,255,0.04)]">
+                  <GitBranch className="w-3.5 h-3.5 text-white" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-white">GitHub</p>
+                  <p className="text-[10px] text-[rgba(255,255,255,0.30)]">Commit & Repo Sync</p>
+                </div>
+              </div>
+              {githubLive ? (
+                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[rgba(110,231,183,0.08)] text-[#6ee7b7]">Live</span>
+              ) : (
+                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[rgba(251,191,36,0.08)] text-[#fbbf24]">Standby</span>
+              )}
+            </Link>
+
+            <div className="flex items-center justify-between p-3 rounded-[14px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.04)] mt-3">
+              <div className="flex items-center gap-3">
+                <div className="p-1.5 rounded-lg bg-[rgba(255,255,255,0.04)]">
+                  <Activity className="w-3.5 h-3.5 text-white" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-white">Apple Health</p>
+                  <p className="text-[10px] text-[rgba(255,255,255,0.30)]">
+                    {stats.todaySteps > 0 ? `Synced today (${stats.todaySteps.toLocaleString()} steps)` : 'Awaiting data sync'}
+                  </p>
+                </div>
+              </div>
+              {stats.todaySteps > 0 ? (
+                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[rgba(110,231,183,0.08)] text-[#6ee7b7]">Live</span>
+              ) : (
+                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[rgba(251,191,36,0.08)] text-[#fbbf24]">Standby</span>
+              )}
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
-    <div className="p-6 lg:p-8 min-h-full page-enter">
+    <div className="p-6 lg:p-8 min-h-full">
       <motion.div variants={container} initial="hidden" animate="show" className="max-w-[1400px] mx-auto space-y-6">
-        {/* Command Center Header */}
-        <motion.div variants={item} className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-2xl lg:text-3xl font-bold">
+        {/* Header */}
+        <motion.div variants={item}>
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <h1 className="text-2xl lg:text-3xl font-semibold text-white tracking-tight">
                 {greeting}, <span className="gradient-text">Medhansh</span>
               </h1>
-              <span className="badge badge-accent animate-float">
-                <Sparkles className="w-3 h-3 mr-1" /> Command Center
-              </span>
+              <p className="text-xs text-[rgba(255,255,255,0.35)] font-mono mt-1">
+                {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+              </p>
             </div>
-            <p className="text-sm text-[var(--text-2)] font-mono tracking-wide">
-              {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-              <span className="mx-2 text-[var(--text-3)]">•</span>
-              <span className="text-[var(--accent)]">{new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="glass-sm px-4 py-2 flex items-center gap-2">
-              <div className="dot dot-active" />
-              <span className="text-xs text-[var(--text-1)] font-mono">Neural Online</span>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full" style={{ background: 'rgba(110,231,183,0.06)', border: '1px solid rgba(110,231,183,0.12)' }}>
+              <div className="w-1.5 h-1.5 rounded-full bg-[#6ee7b7]" style={{ boxShadow: '0 0 6px rgba(110,231,183,0.5)' }} />
+              <span className="text-[10px] text-[rgba(255,255,255,0.55)] font-mono">Online</span>
             </div>
           </div>
         </motion.div>
 
-        {/* Quick Stats Row */}
+        {/* Quick Stats */}
         <motion.div variants={item} className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard
             icon={<Zap className="w-4 h-4" />}
             label="Productivity"
             value={`${stats.productivityScore}%`}
-            trend={+12}
-            color="var(--accent-cyan)"
+            color="#6ee7b7"
           />
           <StatCard
             icon={<FolderKanban className="w-4 h-4" />}
             label="Active Projects"
             value={stats.activeProjects.toString()}
             sub={`${stats.finishedProjects} finished`}
-            color="var(--accent-blue)"
+            color="#60a5fa"
           />
           <StatCard
             icon={<Footprints className="w-4 h-4" />}
             label="Steps Today"
             value={stats.todaySteps.toLocaleString()}
             sub={`${stats.avgSteps.toLocaleString()} avg`}
-            color="var(--accent-green)"
+            color="#6ee7b7"
           />
           <StatCard
             icon={<TrendingUp className="w-4 h-4" />}
             label="Trading P&L"
             value={`$${stats.totalPnl.toLocaleString()}`}
             sub={`${stats.winRate.toFixed(1)}% Win Rate`}
-            color="var(--accent-purple)"
+            color="#a78bfa"
           />
         </motion.div>
 
-        {/* Main Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column: Charts */}
-          <motion.div variants={item} className="lg:col-span-2 space-y-6">
-            {/* Steps Chart */}
-            <div className="glass-card p-5">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Activity className="w-4 h-4 text-[var(--accent-green)]" />
-                  <h3 className="text-sm font-semibold text-[var(--text-primary)]">Activity Overview</h3>
-                </div>
-                <span className="badge badge-green">14 days</span>
-              </div>
-              <ResponsiveContainer width="100%" height={220}>
-                <AreaChart data={stepsChartData}>
-                  <defs>
-                    <linearGradient id="stepsGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--accent-green)" stopOpacity={0.3} />
-                      <stop offset="100%" stopColor="var(--accent-green)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="day" axisLine={false} tickLine={false} />
-                  <YAxis axisLine={false} tickLine={false} width={40} />
-                  <Tooltip content={<ChartTooltip />} />
-                  <Area type="monotone" dataKey="steps" stroke="var(--accent-green)" strokeWidth={2} fill="url(#stepsGrad)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Trading Performance Chart */}
-            <div className="glass-card p-5">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <CandlestickChart className="w-4 h-4 text-[var(--accent-purple)]" />
-                  <h3 className="text-sm font-semibold text-[var(--text-primary)]">Trading Equity Curve</h3>
-                </div>
-                <span className="badge badge-purple">Last 14 Trades</span>
-              </div>
-              <ResponsiveContainer width="100%" height={200}>
-                <AreaChart data={pnlCurveData}>
-                  <defs>
-                    <linearGradient id="pnlGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--accent-purple)" stopOpacity={0.4} />
-                      <stop offset="100%" stopColor="var(--accent-purple)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="day" axisLine={false} tickLine={false} />
-                  <YAxis axisLine={false} tickLine={false} width={50} />
-                  <Tooltip content={<ChartTooltip />} />
-                  <Area type="monotone" dataKey="pnl" stroke="var(--accent-purple)" strokeWidth={2} fill="url(#pnlGrad)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Active Projects */}
-            <div className="glass-card p-5">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <FolderKanban className="w-4 h-4 text-[var(--accent-blue)]" />
-                  <h3 className="text-sm font-semibold text-[var(--text-primary)]">Active Projects</h3>
-                </div>
-                <a href="/projects" className="text-xs text-[var(--accent-cyan)] hover:underline flex items-center gap-1">
-                  View all <ArrowUpRight className="w-3 h-3" />
-                </a>
-              </div>
-              <div className="space-y-3">
-                {projects.filter(p => p.status === 'Ongoing' || p.status === 'Planned').slice(0, 4).map((proj, i) => (
-                  <div key={proj.id ?? i} className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-hover)] hover:bg-[var(--bg-elevated)] transition-colors">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div
-                        className="status-dot flex-shrink-0"
-                        style={{
-                          background: proj.status === 'Ongoing' ? 'var(--accent-green)' : 'var(--accent-yellow)',
-                          boxShadow: proj.status === 'Ongoing' ? '0 0 8px rgba(34,197,94,0.5)' : '0 0 8px rgba(234,179,8,0.5)',
-                        }}
-                      />
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-[var(--text-primary)] truncate">{proj.title}</p>
-                        <p className="text-xs text-[var(--text-tertiary)] truncate">{proj.techStack.join(', ')}</p>
-                      </div>
-                    </div>
-                    <span className={`badge ${proj.status === 'Ongoing' ? 'badge-green' : 'badge-orange'}`}>
-                      {proj.status}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Right Column */}
-          <motion.div variants={item} className="space-y-6">
-            {/* Spotify Widget */}
-            {activeWidgets.includes('integrations') && (
-              <div className="min-h-[200px]">
-                <SpotifyWidget />
-              </div>
-            )}
-            {/* Productivity Score */}
-            {activeWidgets.includes('productivity') && (
-              <div className="glass-card p-5 flex flex-col items-center">
-                <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3 self-start flex items-center gap-2">
-                  <Target className="w-4 h-4 text-[var(--accent-cyan)]" />
-                  Productivity Score
-                </h3>
-                <div className="relative">
-                  <ResponsiveContainer width={180} height={180}>
-                    <RadialBarChart innerRadius="75%" outerRadius="100%" data={productivityRadial} startAngle={90} endAngle={-270}>
-                      <defs>
-                        <linearGradient id="gradientRadial" x1="0" y1="0" x2="1" y2="1">
-                          <stop offset="0%" stopColor="var(--accent-cyan)" />
-                          <stop offset="100%" stopColor="var(--accent-purple)" />
-                        </linearGradient>
-                      </defs>
-                      <RadialBar
-                        dataKey="value"
-                        cornerRadius={12}
-                        background={{ fill: 'rgba(255,255,255,0.04)' }}
-                      />
-                    </RadialBarChart>
-                  </ResponsiveContainer>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-3xl font-bold gradient-text">{stats.productivityScore}</span>
-                    <span className="text-xs text-[var(--text-tertiary)]">/ 100</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Habit Tracker */}
-            {activeWidgets.includes('habits') && (
-              <div className="glass-card p-5">
-                <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3 flex items-center gap-2">
-                  <Flame className="w-4 h-4 text-[var(--accent-pink)]" />
-                  Today&apos;s Habits
-                </h3>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-2xl font-bold text-[var(--text-primary)]">{stats.completedToday}/{stats.totalToday}</span>
-                  <span className={`badge ${stats.habitRate >= 70 ? 'badge-green' : 'badge-orange'}`}>{stats.habitRate}%</span>
-                </div>
-                <div className="w-full h-2 rounded-full bg-[rgba(255,255,255,0.04)] overflow-hidden">
-                  <motion.div
-                    className="h-full rounded-full bg-gradient-to-r from-[var(--accent-pink)] to-[var(--accent-purple)]"
-                    initial={{ width: 0 }}
-                    animate={{ width: `${stats.habitRate}%` }}
-                    transition={{ duration: 1, delay: 0.5 }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* AI Recommendations */}
-            {activeWidgets.includes('ai-insights') && (
-              <div className="glass-card p-5">
-                <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3 flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-[var(--accent-purple)]" />
-                  AI Insights
-                </h3>
-                <div className="space-y-3">
-                  {aiRecommendations.map((rec, i) => {
-                    const Icon = rec.icon;
-                    return (
-                      <motion.div
-                        key={i}
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.8 + i * 0.15 }}
-                        className="flex items-start gap-3 p-2.5 rounded-lg hover:bg-[var(--bg-hover)] transition-colors"
-                      >
-                        <Icon className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: rec.color }} />
-                        <p className="text-xs text-[var(--text-secondary)] leading-relaxed">{rec.text}</p>
-                      </motion.div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Timeline */}
-            {activeWidgets.includes('recent-activity') && (
-              <div className="glass-card p-5">
-                <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3 flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-[var(--accent-cyan)]" />
-                  Recent Activity
-                </h3>
-                <div className="space-y-3">
-                  {timeline.map((event, i) => (
-                    <div key={event.id ?? i} className="flex gap-3">
-                      <div className="flex flex-col items-center">
-                        <div
-                          className="w-2 h-2 rounded-full mt-1.5"
-                          style={{
-                            background: event.category === 'project' ? 'var(--accent-blue)' : event.category === 'fitness' ? 'var(--accent-green)' : event.category === 'study' ? 'var(--accent-yellow)' : 'var(--accent-purple)',
-                          }}
-                        />
-                        {i < timeline.length - 1 && <div className="w-px flex-1 bg-[var(--border-subtle)] mt-1" />}
-                      </div>
-                      <div className="pb-3">
-                        <p className="text-xs font-medium text-[var(--text-primary)]">{event.title}</p>
-                        <p className="text-[10px] text-[var(--text-tertiary)] mt-0.5">
-                          {new Date(event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Integrations Standby / Active */}
-            {activeWidgets.includes('integrations') && (
-              <div className="space-y-6">
-                <div className="glass-card p-5">
-                  <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3 flex items-center gap-2">
-                    <LinkIcon className="w-4 h-4 text-[var(--accent-cyan)]" />
-                    Integrations
-                  </h3>
-                  <div className="space-y-3">
-                    {/* GitHub Integration */}
-                    <Link href="/github" className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-hover)] hover:bg-[rgba(255,255,255,0.05)] transition-colors group cursor-pointer border border-transparent hover:border-[var(--border-glow)]">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)] transition-colors">
-                          <GitBranch className="w-4 h-4 text-[var(--text-primary)]" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">GitHub</p>
-                          <p className="text-[10px] text-[var(--text-tertiary)]">Commit & Repo Sync</p>
-                        </div>
-                      </div>
-                      {githubLive ? (
-                        <span className="badge badge-green flex items-center gap-1">Live</span>
-                      ) : (
-                        <span className="badge badge-orange flex items-center gap-1">Standby</span>
-                      )}
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            )}
-          </motion.div>
+        {/* Drag-and-Drop Masonry/Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 grid-flow-dense pb-12">
+          {activeWidgets.map((widgetId, index) => {
+            const isWide = ['activity-overview', 'trading-equity', 'active-projects'].includes(widgetId);
+            return (
+              <motion.div
+                key={widgetId}
+                layout
+                draggable
+                onDragStart={(e) => handleDragStart(e as unknown as React.DragEvent, index)}
+                onDragEnter={(e) => handleDragEnter(e as unknown as React.DragEvent, index)}
+                onDragEnd={handleDragEnd}
+                onDragOver={(e) => e.preventDefault()}
+                className={`${isWide ? 'md:col-span-2 lg:col-span-2' : 'col-span-1'} ${draggedItem === index ? 'opacity-50 z-50 scale-[1.02]' : 'opacity-100'}`}
+                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              >
+                {renderWidget(widgetId)}
+              </motion.div>
+            );
+          })}
         </div>
       </motion.div>
     </div>
@@ -478,20 +538,20 @@ function StatCard({
   trend?: number; sub?: string; color: string;
 }) {
   return (
-    <div className="glass-card p-4 shine-hover hover:border-[var(--border-glow)] transition-all duration-300">
-      <div className="flex items-center justify-between mb-2">
-        <div className="p-2 rounded-lg" style={{ background: `${color}15` }}>
+    <div className="glass-card p-4 hover:border-[rgba(110,231,183,0.20)] transition-all duration-200">
+      <div className="flex items-center justify-between mb-3">
+        <div className="p-2 rounded-lg" style={{ background: `${color}12` }}>
           <div style={{ color }}>{icon}</div>
         </div>
         {trend !== undefined && (
-          <div className={`flex items-center gap-0.5 text-xs ${trend >= 0 ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]'}`}>
+          <div className={`flex items-center gap-0.5 text-[10px] font-medium ${trend >= 0 ? 'text-[#6ee7b7]' : 'text-[#f87171]'}`}>
             {trend >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
             {Math.abs(trend)}%
           </div>
         )}
       </div>
-      <p className="text-xl font-bold text-[var(--text-primary)]">{value}</p>
-      <p className="text-xs text-[var(--text-tertiary)] mt-0.5">{sub || label}</p>
+      <p className="text-xl font-bold text-white">{value}</p>
+      <p className="text-[10px] text-[rgba(255,255,255,0.35)] mt-0.5">{sub || label}</p>
     </div>
   );
 }

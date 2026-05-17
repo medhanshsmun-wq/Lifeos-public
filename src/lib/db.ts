@@ -183,6 +183,8 @@ export interface UserSettings {
   name: string;
   avatar: string;
   propFirmAccountsCount: number;
+  propFirmName?: string;
+  propFirmSize?: number;
   spotifyClientId?: string;
   spotifyClientSecret?: string;
   spotifyAccessToken?: string;
@@ -215,6 +217,17 @@ export interface Trade {
   emotions: string;
   screenshotUrl?: string;
   tags: string[];
+  isPaperTrade?: boolean;
+  propFirm?: string;
+}
+
+export interface Todo {
+  id?: number;
+  task: string;
+  completed: boolean;
+  date: Date;
+  priority: 'High' | 'Medium' | 'Low';
+  createdAt: Date;
 }
 
 // ─── Database ───────────────────────────────────────────────
@@ -234,6 +247,7 @@ class LifeOSDB extends Dexie {
   timeline!: EntityTable<TimelineEvent, 'id'>;
   settings!: EntityTable<UserSettings, 'id'>;
   trades!: EntityTable<Trade, 'id'>;
+  todos!: EntityTable<Todo, 'id'>;
 
   constructor() {
     super('LifeOSDB');
@@ -270,6 +284,25 @@ class LifeOSDB extends Dexie {
       settings: '++id',
       trades: '++id, ticker, status, entryTime, strategy',
     });
+
+    this.version(4).stores({
+      projects: '++id, title, status, category, createdAt, updatedAt',
+      finance: '++id, type, category, date, amount',
+      fitness: '++id, date, steps',
+      diet: '++id, date, mealType',
+      gym: '++id, date, muscleGroup',
+      hobbies: '++id, name, category, date',
+      study: '++id, subject, subjectId, date, duration',
+      subjects: '++id, name, priority',
+      studyAssignments: '++id, subjectId, type, dueDate, completed',
+      habits: '++id, habitName, date, completed',
+      conversations: '++id, title, projectId, createdAt, updatedAt',
+      weeklyReports: '++id, weekStart, weekEnd, createdAt',
+      timeline: '++id, category, date',
+      settings: '++id',
+      trades: '++id, ticker, status, entryTime, strategy',
+      todos: '++id, date, completed, priority',
+    });
   }
 }
 
@@ -288,7 +321,7 @@ export async function initializeDb() {
       cloudBackupEnabled: false,
       theme: 'midnight',
       accentColor: '#00F5FF',
-      dashboardWidgets: ['productivity', 'habits', 'ai-insights', 'recent-activity', 'integrations'],
+      dashboardWidgets: ['activity-overview', 'trading-equity', 'active-projects', 'todos', 'productivity', 'habits', 'recent-activity', 'integrations', 'spotify'],
       name: 'User',
       avatar: '',
       propFirmAccountsCount: 1,
@@ -313,9 +346,13 @@ export async function initializeDb() {
     }
 
     const current = (await db.settings.toArray())[0];
-    if (current && (!current.dashboardWidgets || !current.accentColor || current.propFirmAccountsCount === undefined)) {
+    if (current && (!current.dashboardWidgets || !current.accentColor || current.propFirmAccountsCount === undefined || !current.dashboardWidgets.includes('todos'))) {
+      const widgets = current.dashboardWidgets || ['activity-overview', 'trading-equity', 'active-projects', 'productivity', 'habits', 'recent-activity', 'integrations', 'spotify'];
+      if (!widgets.includes('todos')) widgets.unshift('todos');
+      if (!widgets.includes('spotify')) widgets.push('spotify');
+
       await db.settings.update(current.id!, {
-        dashboardWidgets: current.dashboardWidgets || ['productivity', 'habits', 'ai-insights', 'recent-activity', 'integrations'],
+        dashboardWidgets: widgets.filter(w => w !== 'ai-insights'),
         accentColor: current.accentColor || '#00F5FF',
         propFirmAccountsCount: current.propFirmAccountsCount ?? 1
       });

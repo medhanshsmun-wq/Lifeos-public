@@ -66,7 +66,7 @@ export default function AnalyticsPage() {
   }, []);
 
   return (
-    <div className="p-6 lg:p-8 grid-bg min-h-full">
+    <div className="p-6 lg:p-8 min-h-full">
       <motion.div initial="hidden" animate="show" variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } }} className="max-w-[1400px] mx-auto space-y-6">
         <motion.div variants={fi} className="flex items-center gap-3">
           <div className="p-2.5 rounded-xl bg-[rgba(0,212,255,0.1)]"><BarChart3 className="w-5 h-5 text-[var(--accent-cyan)]" /></div>
@@ -97,21 +97,7 @@ export default function AnalyticsPage() {
           </motion.div>
         </div>
 
-        {/* AI Insights */}
-        <motion.div variants={fi} className="glass-card p-5">
-          <h3 className="text-sm font-semibold mb-4 flex items-center gap-2"><Zap className="w-4 h-4 text-[var(--accent-purple)]" /> AI-Generated Insights</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">{[
-            { title: 'Peak Hours', desc: 'Most productive coding between 10 PM – 1 AM. Consider scheduling deep work.', color: 'var(--accent-cyan)' },
-            { title: 'Study Gap', desc: 'Mathematics sessions declining. 3 days since last session.', color: 'var(--accent-yellow)' },
-            { title: 'Fitness Trend', desc: 'Step count average up 12% vs last week. Maintain momentum.', color: 'var(--accent-green)' },
-            { title: 'Project Focus', desc: 'LifeOS receiving most attention. Consider allocating time to paused projects.', color: 'var(--accent-purple)' },
-          ].map(insight => (
-            <div key={insight.title} className="p-4 rounded-xl bg-[var(--bg-hover)] border border-[var(--border-subtle)]">
-              <div className="flex items-center gap-2 mb-1"><Target className="w-3.5 h-3.5" style={{ color: insight.color }} /><span className="text-xs font-semibold" style={{ color: insight.color }}>{insight.title}</span></div>
-              <p className="text-xs text-[var(--text-secondary)] leading-relaxed">{insight.desc}</p>
-            </div>
-          ))}</div>
-        </motion.div>
+
       </motion.div>
     </div>
   );

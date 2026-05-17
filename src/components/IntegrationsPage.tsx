@@ -18,12 +18,16 @@ function IntegrationsContent() {
   const searchParams = useSearchParams();
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [hasHealthData, setHasHealthData] = useState(false);
   const { forceFetch } = useSpotify();
 
   useEffect(() => {
     const init = async () => {
       const s = await db.settings.toArray();
       if (s.length > 0) setSettings(s[0]);
+
+      const fitnessCount = await db.fitness.count();
+      setHasHealthData(fitnessCount > 0);
 
       // Handle Spotify Callback
       const code = searchParams.get('code');
@@ -91,14 +95,14 @@ function IntegrationsContent() {
 
   const integrations = [
     { name: 'GitHub', desc: 'Track commits, repos, and coding streaks', icon: GitBranch, connected: !!settings?.githubToken, color: '#ffffff', available: true },
-    { name: 'Apple Health', desc: 'Sync steps, distance, and activity data', icon: Heart, connected: false, color: '#ff3b30', available: false },
+    { name: 'Apple Health', desc: 'Sync steps, distance, and activity data', icon: Heart, connected: hasHealthData, color: '#ff3b30', available: true },
     { name: 'Google Calendar', desc: 'Import events and schedule analytics', icon: Calendar, connected: false, color: '#4285f4', available: false },
     { name: 'Spotify', desc: 'Track listening habits and focus music', icon: Music, connected: !!settings?.spotifyAccessToken, color: '#1db954', available: true },
     { name: 'Notion', desc: 'Import notes and knowledge base', icon: BookOpen, connected: false, color: '#ffffff', available: false },
   ];
 
   return (
-    <div className="p-6 lg:p-8 grid-bg min-h-full">
+    <div className="p-6 lg:p-8 min-h-full">
       <motion.div initial="hidden" animate="show" variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } }} className="max-w-[1000px] mx-auto space-y-6">
         <motion.div variants={fi} className="flex items-center gap-3">
           <div className="p-2.5 rounded-xl bg-[rgba(59,130,246,0.1)]"><Plug className="w-5 h-5 text-[var(--accent-blue)]" /></div>
@@ -119,7 +123,9 @@ function IntegrationsContent() {
                   {int.connected ? (
                     <div className="flex items-center gap-2">
                       <span className="flex items-center gap-1 text-[10px] text-[var(--accent-green)]"><Check className="w-3 h-3" /> Connected</span>
-                      <button onClick={() => handleDisconnect(int.name)} className="px-2 py-1 rounded border border-red-500/20 text-[10px] text-red-400 hover:bg-red-500/10 transition-colors">Disconnect</button>
+                      {int.name !== 'Apple Health' && (
+                        <button onClick={() => handleDisconnect(int.name)} className="px-2 py-1 rounded border border-red-500/20 text-[10px] text-red-400 hover:bg-red-500/10 transition-colors">Disconnect</button>
+                      )}
                     </div>
                   ) : int.available ? (
                     <button onClick={() => handleConnect(int.name)} className="px-3 py-1 rounded-lg text-[10px] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--accent-cyan)] border border-[var(--border-subtle)] transition-colors">

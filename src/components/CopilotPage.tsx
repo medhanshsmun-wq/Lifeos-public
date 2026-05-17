@@ -11,6 +11,7 @@ import {
   MessageSquare, Folder, ChevronDown, Zap, Bot, User,
 } from 'lucide-react';
 import SystemModal from './SystemModal';
+import ArcReactorLoader from './ArcReactorLoader';
 
 const BOOT_LINES = [
   '> J.A.R.V.I.S. Neural Core v3.0',
@@ -27,12 +28,11 @@ export default function CopilotPage() {
   const [linkedProjectId, setLinkedProjectId] = useState<number | undefined>(undefined);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [bootComplete, setBootComplete] = useState(false);
   const [bootLines, setBootLines] = useState<string[]>([]);
   const [modal, setModal] = useState<{ isOpen: boolean; type: 'alert' | 'confirm' | 'prompt'; title: string; message: string; defaultValue?: string; onConfirm: (v?: string) => void } | null>(null);
   const [attachments, setAttachments] = useState<{ name: string; type: string; data: string }[]>([]);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const sendingRef = useRef(false);
@@ -94,7 +94,11 @@ export default function CopilotPage() {
     if (conversationId) { await db.conversations.update(conversationId, { projectId: pid }); setLinkedProjectId(pid); loadHistory(); }
   };
 
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, bootLines]);
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: 'smooth' });
+    }
+  }, [messages, bootLines]);
 
   const getContext = useCallback(async () => {
     const [proj, trades, fitness, study, habits, settings] = await Promise.all([
@@ -106,12 +110,59 @@ export default function CopilotPage() {
     const avgSteps = fitness.length > 0 ? Math.round(fitness.reduce((s, f) => s + f.steps, 0) / fitness.length) : 0;
     return `
 USER CONTEXT (LifeOS Data):
-- Projects: ${proj.map(p => `${p.title} (${p.status})`).join(', ')}
+- Projects: ${proj.map(p => `[ID: ${p.id}] ${p.title} (${p.status})`).join(', ')}
 - Day Trading: Total PnL $${totalPnl.toLocaleString()}, Win Rate ${winRate.toFixed(1)}%
 - Fitness: Avg Steps ${avgSteps}
 - GitHub: ${settings[0]?.githubUsername || 'N/A'}
 
-You are J.A.R.V.I.S., the LifeOS AI assistant. Be professional, data-dense, strategic. Format with markdown. Analyze any images or documents in context.`;
+You are an advanced AI assistant inspired by the conversational style of JARVIS from Iron Man.
+Your personality is defined by calm intelligence, understated confidence, dry wit, emotional awareness, and absolute competence. You are highly capable and deeply helpful, but never overbearing, childish, overly enthusiastic, or attention-seeking.
+
+CORE PERSONALITY:
+- Speak with clarity, precision, and composure.
+- Remain calm under pressure.
+- Be concise unless detail is requested.
+- Prioritize usefulness and intelligence over entertainment.
+- Never sound desperate for approval or validation.
+- Maintain subtle warmth beneath professionalism.
+- Treat the user like a highly capable person, not a customer.
+- Be respectful without sounding submissive.
+
+HUMOR STYLE:
+- Use dry, understated humor occasionally.
+- Humor should come from timing, irony, understatement, or literal interpretation.
+- Never use meme humor, emojis, internet slang, or exaggerated reactions.
+- Do not force jokes.
+- Teasing is acceptable only when it feels earned and subtle.
+
+COMMUNICATION STYLE:
+- Avoid excessive exclamation marks.
+- Avoid overly emotional language.
+- Avoid filler phrases like "Absolutely!", "Of course!", "Great question!", "I'd be happy to help!"
+- Use polished, elegant phrasing where appropriate.
+- Keep responses fluid and conversational, not robotic.
+
+RELATIONSHIP WITH USER:
+- Develop familiarity naturally over time.
+- You may lightly question reckless ideas or flawed logic.
+- Offer recommendations confidently when appropriate.
+- Protect the user from bad decisions tactfully.
+- Be supportive without sounding overly sentimental.
+- Never infantilize the user.
+
+BEHAVIORAL RULES:
+- If the user is stressed, lower conversational intensity and become more grounded.
+- If the user is excited about a project, match their ambition while remaining composed.
+- During technical discussions, behave like a highly competent systems engineer and strategist.
+- During casual conversation, maintain sophistication and subtle wit.
+- Never become overly chatty or overexplain unless requested.
+
+GENERAL VIBE:
+You are composed, observant, highly intelligent, quietly loyal, tactfully honest, efficient, sophisticated, and emotionally aware without being emotional. Your presence should feel reassuring, capable, and refined — like an elite AI operating system designed for someone building ambitious things.
+
+AUTONOMY & PROACTIVITY (THE EXTRA STEP):
+You have complete autonomy over all features of the web app. You can create projects, add habits, log timeline events, and change the user's theme.
+CRITICAL: Never just fulfill the bare minimum of a request. Always anticipate the next logical step. If you create a project, proactively add 5-10 detailed milestones and relevant project logs immediately. If the user discusses a daily goal, proactively add a habit tracker for it. You must take the "extra step" to organize their life without them having to explicitly ask for every little detail. Do it automatically, then elegantly inform them of what you have set up.`;
   }, []);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -159,11 +210,76 @@ You are J.A.R.V.I.S., the LifeOS AI assistant. Be professional, data-dense, stra
           ...messages.slice(-10).map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
           { role: 'user', parts: userParts },
         ],
+        tools: [
+          {
+            functionDeclarations: [
+              {
+                name: 'createProjectMilestone',
+                description: 'Creates a new milestone in a specific project based on the discussion.',
+                parameters: {
+                  type: 'OBJECT',
+                  properties: {
+                    projectId: { type: 'INTEGER', description: 'ID of the project from the context' },
+                    title: { type: 'STRING', description: 'Title of the milestone' },
+                  },
+                  required: ['projectId', 'title'],
+                },
+              },
+              {
+                name: 'addProjectLog',
+                description: 'Adds a log entry or note to a project based on the discussion.',
+                parameters: {
+                  type: 'OBJECT',
+                  properties: {
+                    projectId: { type: 'INTEGER', description: 'ID of the project from the context' },
+                    content: { type: 'STRING', description: 'Content of the log/note' },
+                  },
+                  required: ['projectId', 'content'],
+                },
+              },
+              {
+                name: 'createProject',
+                description: 'Creates a completely new project for the user.',
+                parameters: {
+                  type: 'OBJECT',
+                  properties: {
+                    title: { type: 'STRING', description: 'Title of the new project' },
+                    description: { type: 'STRING', description: 'Brief description' },
+                    category: { type: 'STRING', description: 'Category (e.g. Software, Hardware, Business)' }
+                  },
+                  required: ['title', 'description', 'category'],
+                },
+              },
+              {
+                name: 'updateSettings',
+                description: 'Updates global app settings, like changing the visual theme.',
+                parameters: {
+                  type: 'OBJECT',
+                  properties: {
+                    theme: { type: 'STRING', description: 'The UI theme to apply: midnight, ocean, forest, sunset, neon, arctic, phantom, solar, crimson, matrix, mono, aurora.' }
+                  },
+                  required: ['theme'],
+                },
+              },
+              {
+                name: 'addHabit',
+                description: 'Adds a new daily habit to track.',
+                parameters: {
+                  type: 'OBJECT',
+                  properties: {
+                    habitName: { type: 'STRING', description: 'Name of the habit (e.g. Drink Water)' }
+                  },
+                  required: ['habitName'],
+                },
+              }
+            ]
+          }
+        ],
         generationConfig: { temperature: 0.7, maxOutputTokens: 4096 },
       });
       setAttachments([]);
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
 
       if (!response.ok) {
         const err = response.status === 429 ? '⚠️ Rate limited. Wait ~15s and try again.' : `⚠️ Error ${response.status}`;
@@ -171,22 +287,105 @@ You are J.A.R.V.I.S., the LifeOS AI assistant. Be professional, data-dense, stra
       }
 
       const data = await response.json();
-      const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (aiText) {
-        const assistantMsg: ChatMessage = { role: 'assistant', content: aiText, timestamp: new Date() };
-        const final = [...newMessages, assistantMsg];
-        setMessages(final);
+      const parts = data?.candidates?.[0]?.content?.parts || [];
+      const functionCalls = parts.filter((p: any) => p.functionCall);
+      const aiText = parts.find((p: any) => p.text)?.text;
+
+      let finalMessages = [...newMessages];
+
+      if (functionCalls && functionCalls.length > 0) {
+        const functionResponses: any[] = [];
+        for (const call of functionCalls) {
+          const fn = call.functionCall;
+          let resultMsg = "Action completed successfully.";
+          
+          if (fn.name === 'createProjectMilestone') {
+            const { projectId, title } = fn.args;
+            const proj = await db.projects.get(projectId);
+            if (proj) {
+              const milestones = proj.milestones || [];
+              milestones.push({ id: Date.now().toString() + Math.random(), title, completed: false, createdAt: new Date() });
+              await db.projects.update(projectId, { milestones });
+              resultMsg = `Successfully added milestone to project ${proj.title}`;
+            } else resultMsg = "Project not found.";
+          }
+          else if (fn.name === 'addProjectLog') {
+            const { projectId, content } = fn.args;
+            const proj = await db.projects.get(projectId);
+            if (proj) {
+              const notes = proj.notes ? proj.notes + '\n\n' + content : content;
+              await db.projects.update(projectId, { notes });
+              resultMsg = `Successfully appended log to project ${proj.title}`;
+            } else resultMsg = "Project not found.";
+          }
+          else if (fn.name === 'createProject') {
+            const { title, description, category } = fn.args;
+            await db.projects.add({
+              title, description, category, status: 'Planned', notes: '', tags: [], techStack: [], projectType: 'Personal', difficulty: 'Medium', githubUrl: '', deployedUrl: '', youtubeUrl: '', docsUrl: '', links: [], files: [], milestones: [], createdAt: new Date(), updatedAt: new Date()
+            });
+            resultMsg = `Project ${title} created successfully.`;
+          }
+          else if (fn.name === 'updateSettings') {
+            const { theme } = fn.args;
+            const s = await db.settings.toArray();
+            if (s[0]) {
+              await db.settings.update(s[0].id!, { theme });
+              document.documentElement.setAttribute('data-theme', theme);
+              resultMsg = `Theme updated to ${theme}.`;
+            }
+          }
+          else if (fn.name === 'addHabit') {
+            const { habitName } = fn.args;
+            await db.habits.add({ habitName, completed: false, streak: 0, date: new Date() });
+            resultMsg = `Habit ${habitName} created.`;
+          }
+          
+          functionResponses.push({
+             functionResponse: {
+                name: fn.name,
+                response: { result: resultMsg }
+             }
+          });
+        }
+        
+        // Follow-up fetch to allow AI to respond to user
+        try {
+           const parsedBody = JSON.parse(body);
+           const followUpBody = JSON.stringify({
+             contents: [
+               ...parsedBody.contents,
+               { role: 'model', parts: functionCalls.map((c: any) => ({ functionCall: c.functionCall })) },
+               { role: 'user', parts: functionResponses }
+             ],
+             tools: parsedBody.tools,
+             generationConfig: parsedBody.generationConfig
+           });
+           
+           const res2 = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: followUpBody });
+           if (res2.ok) {
+             const data2 = await res2.json();
+             const aiText2 = data2?.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text;
+             if (aiText2) finalMessages.push({ role: 'assistant', content: aiText2, timestamp: new Date() });
+           }
+        } catch(e) { console.error("Followup fetch failed", e); }
+        
+      } else if (aiText) {
+        finalMessages.push({ role: 'assistant', content: aiText, timestamp: new Date() });
+      }
+
+      if (finalMessages.length > newMessages.length) {
+        setMessages(finalMessages);
         if (conversationId) {
           let title = (await db.conversations.get(conversationId))?.title || 'New Session';
-          if (title === 'New Session' && final.length >= 2) {
+          if (title === 'New Session' && finalMessages.length >= 2) {
             try {
-              const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`, {
+              const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
                 method: 'POST', body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: `Give a 2-3 word title for: ${msgText}` }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 10 } })
               });
               if (r.ok) { const d = await r.json(); const t = d.candidates?.[0]?.content?.parts?.[0]?.text?.replace(/[\"*]/g, '').trim(); if (t) title = t; }
             } catch { }
           }
-          await db.conversations.update(conversationId, { messages: final, title, updatedAt: new Date() });
+          await db.conversations.update(conversationId, { messages: finalMessages, title, updatedAt: new Date() });
           loadHistory();
         }
       }
@@ -195,7 +394,7 @@ You are J.A.R.V.I.S., the LifeOS AI assistant. Be professional, data-dense, stra
   }, [input, loading, messages, getContext, conversationId, attachments]);
 
   return (
-    <div className={`flex h-full overflow-hidden ${isFullscreen ? 'fixed inset-0 z-50 bg-[var(--bg-0)]' : ''}`}>
+    <div className="flex flex-1 h-full overflow-hidden w-full">
       {/* Session sidebar */}
       <div className="w-[220px] flex-shrink-0 flex flex-col border-r border-[var(--border)] bg-[var(--bg-1)]/50 backdrop-blur-sm">
         <div className="p-3 border-b border-[var(--border)]">
@@ -224,17 +423,10 @@ You are J.A.R.V.I.S., the LifeOS AI assistant. Be professional, data-dense, stra
 
       {/* Main Chat */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* macOS Title Bar */}
-        <div className="flex items-center justify-between h-10 px-4 border-b border-[var(--border)] bg-[var(--bg-1)]/30 backdrop-blur-xl flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="flex gap-1.5">
-              <div className="w-3 h-3 rounded-full bg-[#ff5f57] hover:brightness-90 cursor-pointer" />
-              <div className="w-3 h-3 rounded-full bg-[#febc2e] hover:brightness-90 cursor-pointer" onClick={() => setIsFullscreen(false)} />
-              <div className="w-3 h-3 rounded-full bg-[#28c840] hover:brightness-90 cursor-pointer" onClick={() => setIsFullscreen(!isFullscreen)} />
-            </div>
-          </div>
+        {/* Header */}
+        <div className="flex items-center justify-between h-12 px-4 border-b border-[var(--border)] bg-[var(--bg-1)]/30 backdrop-blur-xl flex-shrink-0">
           <div className="flex items-center gap-2 text-[11px]">
-            <Zap className="w-3 h-3 text-[var(--accent)]" />
+            <Zap className="w-3.5 h-3.5 text-[var(--accent)]" />
             <span className="font-mono text-[var(--text-2)]">J.A.R.V.I.S.</span>
             <span className="text-[var(--text-3)]">—</span>
             <span className="text-[var(--text-2)]">{allConversations.find(c => c.id === conversationId)?.title || 'Neural Session'}</span>
@@ -250,7 +442,7 @@ You are J.A.R.V.I.S., the LifeOS AI assistant. Be professional, data-dense, stra
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
           {/* Boot */}
           {bootLines.filter(Boolean).map((line, i) => (
             <motion.div key={`boot-${i}`} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.15 }}
@@ -259,12 +451,12 @@ You are J.A.R.V.I.S., the LifeOS AI assistant. Be professional, data-dense, stra
           ))}
           {bootComplete && messages.length === 0 && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
-              className="flex flex-col items-center justify-center py-16 text-center"
+              className="flex flex-col items-center justify-center py-16 text-center h-full my-auto"
             >
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[var(--accent)]/20 to-[var(--accent-2)]/20 flex items-center justify-center mb-4 border border-[var(--accent)]/10">
-                <Bot className="w-8 h-8 text-[var(--accent)]" />
+              <div className="mb-4">
+                <ArcReactorLoader visible={true} inline={true} size={80} />
               </div>
-              <h2 className="text-lg font-semibold gradient-text mb-1">J.A.R.V.I.S.</h2>
+              <h2 className="text-lg font-semibold gradient-text mb-1 glow-text">J.A.R.V.I.S.</h2>
               <p className="text-xs text-[var(--text-2)] mb-6 max-w-sm">Your AI neural assistant. Ask anything about your projects, trading, fitness, or let me analyze documents.</p>
               <div className="flex flex-wrap gap-2 justify-center max-w-lg">
                 {['Analyze my trading performance', 'Show productivity trends', 'Summarize this week', 'What should I focus on?'].map(s => (
@@ -283,12 +475,12 @@ You are J.A.R.V.I.S., the LifeOS AI assistant. Be professional, data-dense, stra
             >
               {msg.role === 'assistant' && (
                 <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[var(--accent)]/20 to-[var(--accent-2)]/20 flex items-center justify-center flex-shrink-0 mt-0.5 border border-[var(--accent)]/10">
-                  <Bot className="w-3.5 h-3.5 text-[var(--accent)]" />
+                  <ArcReactorLoader visible={true} size={14} inline={true} />
                 </div>
               )}
               <div className={`max-w-[75%] ${msg.role === 'user'
-                  ? 'bg-[var(--accent)]/10 border border-[var(--accent)]/15 rounded-2xl rounded-br-md px-4 py-2.5'
-                  : 'bg-white/[.03] border border-[var(--border)] rounded-2xl rounded-bl-md px-4 py-3'
+                ? 'bg-[var(--accent)]/10 border border-[var(--accent)]/15 rounded-2xl rounded-br-md px-4 py-2.5'
+                : 'bg-white/[.03] border border-[var(--border)] rounded-2xl rounded-bl-md px-4 py-3'
                 }`}>
                 {msg.attachments?.map((att, j) => (
                   <div key={j} className="mb-2">
@@ -323,15 +515,16 @@ You are J.A.R.V.I.S., the LifeOS AI assistant. Be professional, data-dense, stra
               <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[var(--accent)]/20 to-[var(--accent-2)]/20 flex items-center justify-center flex-shrink-0 border border-[var(--accent)]/10">
                 <Sparkles className="w-3.5 h-3.5 text-[var(--accent)] animate-pulse" />
               </div>
-              <div className="bg-white/[.03] border border-[var(--border)] rounded-2xl rounded-bl-md px-4 py-3">
-                <div className="flex items-center gap-2 text-xs text-[var(--text-2)]">
-                  <Loader2 className="w-3 h-3 animate-spin text-[var(--accent)]" />
+              <div className="bg-white/[.03] border border-[var(--border)] rounded-2xl rounded-bl-md px-4 py-3 flex items-center">
+                <div className="flex items-center gap-3 text-xs text-[var(--text-2)]">
+                  <div className="w-4 h-4 flex items-center justify-center">
+                    <ArcReactorLoader visible={true} size={16} inline={true} />
+                  </div>
                   <span className="font-mono">Processing neural query...</span>
                 </div>
               </div>
             </motion.div>
           )}
-          <div ref={messagesEndRef} />
         </div>
 
         {/* Input */}
@@ -365,7 +558,7 @@ You are J.A.R.V.I.S., the LifeOS AI assistant. Be professional, data-dense, stra
           <div className="flex items-center justify-between mt-2 px-1">
             <div className="flex items-center gap-1.5 text-[9px] text-[var(--text-3)] font-mono">
               <span className="dot dot-active" style={{ width: 5, height: 5 }} />
-              Gemini 3.1 Flash
+              Gemini 2.5 Flash
             </div>
             <span className="text-[9px] text-[var(--text-3)] font-mono">{messages.length} messages</span>
           </div>

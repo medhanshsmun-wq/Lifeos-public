@@ -29,6 +29,7 @@ export default function FinancePage() {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [settings, setSettings] = useState<any>(null);
   const [showAddTrade, setShowAddTrade] = useState(false);
+  const [viewMode, setViewMode] = useState<'live' | 'paper'>('live');
 
   const loadData = async () => {
     const [t, s] = await Promise.all([
@@ -61,23 +62,45 @@ export default function FinancePage() {
               <p className="text-xs text-[var(--text-tertiary)] font-mono">Real-time execution log & performance metrics</p>
             </div>
           </div>
+          
+          <div className="flex bg-[var(--bg-elevated)] p-1 rounded-xl border border-[var(--border-subtle)]">
+            <button 
+              onClick={() => setViewMode('live')} 
+              className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-colors ${viewMode === 'live' ? 'bg-[var(--accent-purple)] text-white' : 'text-[var(--text-secondary)] hover:text-white'}`}
+            >
+              Live Account
+            </button>
+            <button 
+              onClick={() => setViewMode('paper')} 
+              className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-colors ${viewMode === 'paper' ? 'bg-[var(--accent-cyan)] text-white' : 'text-[var(--text-secondary)] hover:text-white'}`}
+            >
+              Paper Trading
+            </button>
+          </div>
         </div>
 
         <TradingJournal 
-          trades={trades} 
+          trades={trades.filter(t => viewMode === 'paper' ? t.isPaperTrade : !t.isPaperTrade)} 
           onAdd={() => setShowAddTrade(true)} 
           onUpdate={loadData}
-          propFirmCount={settings?.propFirmAccountsCount || 1}
-          onUpdatePropFirmCount={updatePropFirmCount}
+          viewMode={viewMode}
+          settings={settings}
+          onUpdateSettings={async (updates: any) => {
+            if (settings?.id) {
+              await db.settings.update(settings.id, updates);
+              loadData();
+            }
+          }}
         />
       </div>
 
       {/* Modals */}
       <AnimatePresence>
         {showAddTrade && (
-          <Modal onClose={() => setShowAddTrade(false)} title="Log Trade Protocol">
+          <Modal onClose={() => setShowAddTrade(false)} title={`Log ${viewMode === 'paper' ? 'Paper' : 'Live'} Trade`}>
             <TradeForm 
-              propFirmCount={settings?.propFirmAccountsCount || 1}
+              viewMode={viewMode}
+              settings={settings}
               onSave={async (e) => { await db.trades.add(e); loadData(); setShowAddTrade(false); }} 
             />
           </Modal>
@@ -89,12 +112,13 @@ export default function FinancePage() {
 
 
 // ─── Trading Journal Component ────────────────────────────
-function TradingJournal({ trades, onAdd, onUpdate, propFirmCount, onUpdatePropFirmCount }: { 
+function TradingJournal({ trades, onAdd, onUpdate, viewMode, settings, onUpdateSettings }: { 
   trades: Trade[]; 
   onAdd: () => void; 
   onUpdate: () => void; 
-  propFirmCount: number;
-  onUpdatePropFirmCount: (c: number) => void;
+  viewMode: 'live' | 'paper';
+  settings: any;
+  onUpdateSettings: (u: any) => void;
 }) {
   const [journalTab, setJournalTab] = useState<'dashboard' | 'calendar' | 'trades'>('dashboard');
   const [filter, setFilter] = useState({ ticker: '', side: 'all', status: 'all' });
@@ -150,22 +174,24 @@ function TradingJournal({ trades, onAdd, onUpdate, propFirmCount, onUpdatePropFi
           ))}
         </div>
         <div className="flex items-center gap-3">
-          <div className="glass-card-sm px-4 py-2 flex items-center gap-3 border-[var(--accent-cyan)]/20">
-            <Building2 className="w-3.5 h-3.5 text-[var(--accent-cyan)]" />
-            <div className="flex flex-col">
-              <span className="text-[8px] font-bold text-[var(--text-tertiary)] uppercase tracking-tighter">Prop Nodes</span>
-              <div className="flex items-center gap-2">
-                <input 
-                  type="number" 
-                  value={propFirmCount} 
-                  onChange={(e) => onUpdatePropFirmCount(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="w-8 bg-transparent text-xs font-bold text-[var(--accent-cyan)] outline-none"
-                />
+          {viewMode === 'paper' && (
+            <div className="glass-card-sm px-4 py-2 flex items-center gap-3 border-[var(--accent-cyan)]/20">
+              <Building2 className="w-3.5 h-3.5 text-[var(--accent-cyan)]" />
+              <div className="flex flex-col">
+                <span className="text-[8px] font-bold text-[var(--text-tertiary)] uppercase tracking-tighter">Paper Accounts</span>
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="number" 
+                    value={settings?.propFirmAccountsCount || 1} 
+                    onChange={(e) => onUpdateSettings({ propFirmAccountsCount: Math.max(1, parseInt(e.target.value) || 1) })}
+                    className="w-8 bg-transparent text-xs font-bold text-[var(--accent-cyan)] outline-none"
+                  />
+                </div>
               </div>
             </div>
-          </div>
-          <button onClick={onAdd} className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-[var(--accent-purple)] to-[var(--accent-pink)] text-white text-sm font-bold shadow-lg shadow-purple-500/20">
-            <Plus className="w-4 h-4" /> Log Trade
+          )}
+          <button onClick={onAdd} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-white text-sm font-bold shadow-lg ${viewMode === 'paper' ? 'bg-gradient-to-r from-[var(--accent-cyan)] to-[var(--accent-blue)] shadow-cyan-500/20' : 'bg-gradient-to-r from-[var(--accent-purple)] to-[var(--accent-pink)] shadow-purple-500/20'}`}>
+            <Plus className="w-4 h-4" /> Log {viewMode === 'paper' ? 'Paper' : 'Live'} Trade
           </button>
         </div>
       </motion.div>
@@ -176,7 +202,11 @@ function TradingJournal({ trades, onAdd, onUpdate, propFirmCount, onUpdatePropFi
             <StatCard title="Total Net PnL" value={`$${metrics.totalPnl.toLocaleString()}`} icon={TrendingUp} color={metrics.totalPnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'} />
             <StatCard title="Win Rate" value={`${metrics.winRate.toFixed(1)}%`} icon={Target} color="var(--accent-cyan)" />
             <StatCard title="Profit Factor" value={metrics.profitFactor.toFixed(2)} icon={Activity} color="var(--accent-purple)" />
-            <StatCard title="Prop Multiplier" value={`x${propFirmCount}`} icon={Building2} color="var(--accent-blue)" />
+            {viewMode === 'paper' ? (
+              <StatCard title="Prop Multiplier" value={`x${settings?.propFirmAccountsCount || 1}`} icon={Building2} color="var(--accent-blue)" />
+            ) : (
+              <StatCard title="Avg RR" value={`${metrics.avgRr.toFixed(2)}R`} icon={Star} color="var(--accent-yellow)" />
+            )}
           </motion.div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -208,7 +238,13 @@ function TradingJournal({ trades, onAdd, onUpdate, propFirmCount, onUpdatePropFi
               <div className="space-y-4">
                 <InsightRow label="Best Win (Total)" value={`+$${metrics.bestWin.toLocaleString()}`} color="var(--accent-green)" />
                 <InsightRow label="Worst Loss (Total)" value={`$${metrics.worstLoss.toLocaleString()}`} color="var(--accent-red)" />
-                <InsightRow label="Managed Accounts" value={propFirmCount.toString()} color="var(--accent-cyan)" />
+                {viewMode === 'paper' && (
+                  <>
+                    <InsightRow label="Managed Accounts" value={(settings?.propFirmAccountsCount || 1).toString()} color="var(--accent-cyan)" />
+                    <InsightRow label="Prop Firm Name" value={settings?.propFirmName || 'N/A'} color="var(--accent-purple)" />
+                    <InsightRow label="Acc Size" value={`$${(settings?.propFirmSize || 0).toLocaleString()}`} color="var(--text-secondary)" />
+                  </>
+                )}
                 <InsightRow label="Avg RR achieved" value={metrics.avgRr.toFixed(2)} color="var(--text-secondary)" />
                 <div className="pt-4 border-t border-[var(--border-subtle)] space-y-2">
                   <p className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Psychology Grade</p>
@@ -348,21 +384,29 @@ function Modal({ onClose, title, children }: { onClose: () => void; title: strin
 }
 
 
-function TradeForm({ onSave, propFirmCount }: { onSave: (e: Omit<Trade, 'id'>) => void; propFirmCount: number }) {
+function TradeForm({ onSave, viewMode, settings }: { onSave: (e: Omit<Trade, 'id'>) => void; viewMode: 'live' | 'paper'; settings: any }) {
+  const propFirmCount = viewMode === 'paper' ? (settings?.propFirmAccountsCount || 1) : 1;
   const [form, setForm] = useState({
     ticker: '', marketType: 'Crypto', side: 'Long' as 'Long' | 'Short',
     entryPrice: '', exitPrice: '', positionSize: '', riskAmount: '',
     strategy: 'Breakout', setupType: 'Bull Flag', confidence: 3,
-    notes: '', emotions: 'Neutral'
+    notes: '', emotions: 'Neutral', propFirmName: settings?.propFirmName || '', propFirmSize: settings?.propFirmSize?.toString() || ''
   });
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const entry = Number(form.entryPrice);
     const exit = Number(form.exitPrice);
     const size = Number(form.positionSize);
     // Multiply profit/loss by number of prop firm accounts
     const pnl = (exit - entry) * size * (form.side === 'Long' ? 1 : -1) * propFirmCount;
     
+    // Save settings if they changed
+    if (viewMode === 'paper' && settings?.id) {
+      if (form.propFirmName !== settings.propFirmName || Number(form.propFirmSize) !== settings.propFirmSize) {
+        await db.settings.update(settings.id, { propFirmName: form.propFirmName, propFirmSize: Number(form.propFirmSize) });
+      }
+    }
+
     onSave({
       ...form,
       entryPrice: entry,
@@ -375,7 +419,9 @@ function TradeForm({ onSave, propFirmCount }: { onSave: (e: Omit<Trade, 'id'>) =
       status: 'Closed',
       mistakes: [],
       tags: [],
-      confidence: form.confidence
+      confidence: form.confidence,
+      isPaperTrade: viewMode === 'paper',
+      propFirm: viewMode === 'paper' ? form.propFirmName : undefined
     });
   };
 
@@ -404,19 +450,29 @@ function TradeForm({ onSave, propFirmCount }: { onSave: (e: Omit<Trade, 'id'>) =
         <FormInput label="Size (per account)" value={form.positionSize} onChange={v => setForm({...form, positionSize: v})} type="number" placeholder="1.0" />
         <FormInput label="Risk ($ per account)" value={form.riskAmount} onChange={v => setForm({...form, riskAmount: v})} type="number" placeholder="1000" />
       </div>
-      <div className="p-3 rounded-xl bg-[var(--accent-cyan)]/5 border border-[var(--accent-cyan)]/20">
-        <p className="text-[10px] font-bold text-[var(--accent-cyan)] uppercase tracking-widest mb-1">Prop Multiplier Active</p>
-        <p className="text-[9px] text-[var(--text-tertiary)] leading-tight">PNL will be multiplied by {propFirmCount} (Total Accounts). Risk will also be aggregated.</p>
-      </div>
+      
+      {viewMode === 'paper' && (
+        <>
+          <div className="grid grid-cols-2 gap-4">
+            <FormInput label="Prop Firm Name" value={form.propFirmName} onChange={v => setForm({...form, propFirmName: v})} placeholder="e.g. Apex, Topstep" />
+            <FormInput label="Account Size" value={form.propFirmSize} onChange={v => setForm({...form, propFirmSize: v})} type="number" placeholder="50000" />
+          </div>
+          <div className="p-3 rounded-xl bg-[var(--accent-cyan)]/5 border border-[var(--accent-cyan)]/20">
+            <p className="text-[10px] font-bold text-[var(--accent-cyan)] uppercase tracking-widest mb-1">Prop Multiplier Active</p>
+            <p className="text-[9px] text-[var(--text-tertiary)] leading-tight">PNL will be multiplied by {propFirmCount} (Total Accounts). Risk will also be aggregated.</p>
+          </div>
+        </>
+      )}
+
       <FormSelect label="Strategy" value={form.strategy} onChange={v => setForm({...form, strategy: v})} options={['Breakout','Mean Reversion','Scalping','Swing']} />
       <FormSelect label="Common Mistakes" value={form.emotions} onChange={v => setForm({...form, emotions: v})} options={['None','FOMO','Early Exit','Overleveraged','Hesitation','Rule Violation']} />
       <FormInput label="Notes" value={form.notes} onChange={v => setForm({...form, notes: v})} placeholder="Execution details..." />
       
       <button 
         onClick={handleSubmit}
-        className="w-full py-4 rounded-2xl bg-gradient-to-r from-[var(--accent-purple)] to-[var(--accent-pink)] text-white font-bold text-sm shadow-lg shadow-purple-500/20"
+        className={`w-full py-4 rounded-2xl text-white font-bold text-sm shadow-lg ${viewMode === 'paper' ? 'bg-gradient-to-r from-[var(--accent-cyan)] to-[var(--accent-blue)] shadow-cyan-500/20' : 'bg-gradient-to-r from-[var(--accent-purple)] to-[var(--accent-pink)] shadow-purple-500/20'}`}
       >
-        Finalize Trade
+        Finalize {viewMode === 'paper' ? 'Paper' : 'Live'} Trade
       </button>
     </div>
   );

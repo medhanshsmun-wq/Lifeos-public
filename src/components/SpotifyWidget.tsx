@@ -109,7 +109,7 @@ export default function SpotifyWidget() {
   if (loading) {
     return (
       <div className="glass-card p-6 h-full min-h-[200px] flex items-center justify-center">
-        <Loader2 className="w-6 h-6 text-[#1db954] animate-spin" />
+        <Loader2 className="w-6 h-6 text-[#6ee7b7] animate-spin" />
       </div>
     );
   }
@@ -117,23 +117,23 @@ export default function SpotifyWidget() {
   if (!isConnected) {
     return (
       <div className="glass-card p-6 h-full flex flex-col items-center justify-center text-center space-y-3">
-        <div className="w-12 h-12 rounded-full bg-[#1db954]/10 flex items-center justify-center mb-2">
-          <Music className="w-6 h-6 text-[#1db954]" />
+        <div className="w-12 h-12 rounded-full bg-[rgba(110,231,183,0.06)] flex items-center justify-center mb-2">
+          <Music className="w-6 h-6 text-[#6ee7b7]" />
         </div>
-        <p className="text-sm font-semibold text-[var(--text-primary)]">Spotify Not Connected</p>
-        <p className="text-xs text-[var(--text-tertiary)]">Connect in Settings to view stats and control playback.</p>
+        <p className="text-sm font-semibold text-white">Spotify Not Connected</p>
+        <p className="text-xs text-[rgba(255,255,255,0.40)]">Connect in Settings to view stats and control playback.</p>
       </div>
     );
   }
 
   return (
     <div 
-      className="relative overflow-hidden rounded-2xl h-full flex flex-col transition-all duration-1000"
+      className="relative overflow-hidden rounded-[20px] h-full flex flex-col transition-all duration-1000"
       style={{
         background: track 
-          ? `linear-gradient(135deg, rgba(${r},${g},${b},0.15) 0%, var(--bg-glass) 60%, var(--bg-glass) 100%)`
-          : 'var(--bg-glass)',
-        border: `1px solid rgba(${r},${g},${b},${track ? 0.15 : 0.06})`,
+          ? `linear-gradient(135deg, rgba(${r},${g},${b},0.10) 0%, #0a0a0f 60%, #0a0a0f 100%)`
+          : '#0a0a0f',
+        border: `1px solid rgba(${r},${g},${b},${track ? 0.12 : 0.06})`,
       }}
     >
       {/* Dynamic glow behind album art */}
@@ -149,7 +149,7 @@ export default function SpotifyWidget() {
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-2" style={{ color: track ? `rgb(${r},${g},${b})` : '#1db954' }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.84.241 1.2zM19.32 10.62C15.24 8.16 8.82 7.92 5.16 9.06c-.6.18-1.2-.18-1.38-.72-.18-.6.18-1.2.72-1.38 4.26-1.26 11.28-1.02 15.72 1.62.539.3.719 1.02.419 1.56-.239.48-.959.66-1.319.48z"/></svg>
-            <h3 className="text-sm font-bold uppercase tracking-wider">Now Playing</h3>
+            <h3 className="text-xs font-medium uppercase tracking-[0.22em]">Now Playing</h3>
           </div>
           {isPlaying && (
             <div className="flex items-end gap-[3px] h-4">
@@ -204,8 +204,8 @@ export default function SpotifyWidget() {
                 >
                   {track.name}
                 </motion.p>
-                <p className="text-xs text-[var(--text-tertiary)] truncate">{track.artists?.map((a: any) => a.name).join(', ')}</p>
-                <p className="text-[10px] text-[var(--text-muted)] truncate mt-0.5">{track.album?.name}</p>
+                <p className="text-xs text-[rgba(255,255,255,0.45)] truncate">{track.artists?.map((a: any) => a.name).join(', ')}</p>
+                <p className="text-[10px] text-[rgba(255,255,255,0.25)] truncate mt-0.5">{track.album?.name}</p>
               </div>
             </div>
             
@@ -229,7 +229,7 @@ export default function SpotifyWidget() {
                   }}
                 />
               </div>
-              <div className="flex justify-between text-[10px] text-[var(--text-muted)] font-mono">
+              <div className="flex justify-between text-[10px] text-[rgba(255,255,255,0.25)] font-mono">
                 <span>{formatTime(displayProgress)}</span>
                 <span>{formatTime(track.duration_ms)}</span>
               </div>
@@ -283,7 +283,7 @@ export default function SpotifyWidget() {
           <div className="flex-1 flex flex-col items-center justify-center text-center space-y-4">
             <p className="text-sm font-medium text-[var(--text-secondary)]">No active playback</p>
             {deviceId ? (
-              <button onClick={transferPlayback} className="px-4 py-2 rounded-xl bg-[#1db954] text-black font-semibold text-xs hover:scale-105 transition-all flex items-center gap-2">
+              <button onClick={transferPlayback} className="px-4 py-2 rounded-xl bg-[#6ee7b7] text-black font-semibold text-xs hover:scale-105 transition-all flex items-center gap-2">
                 <MonitorSpeaker className="w-4 h-4" /> Start Web Player
               </button>
             ) : (
@@ -294,8 +294,8 @@ export default function SpotifyWidget() {
 
         {/* Top Artists */}
         {topArtists.length > 0 && (
-          <div className="border-t border-white/5 pt-4 mt-auto">
-            <h4 className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest mb-3">Top Artists This Month</h4>
+          <div className="border-t border-[rgba(255,255,255,0.06)] pt-4 mt-auto">
+            <h4 className="text-[10px] font-medium text-[rgba(255,255,255,0.35)] uppercase tracking-[0.22em] mb-3">Top Artists</h4>
             <div className="flex gap-3">
               {topArtists.map(artist => (
                 <div key={artist.id} className="flex flex-col items-center gap-1.5 flex-1 min-w-0">

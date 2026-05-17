@@ -57,7 +57,7 @@ export default function FitnessPage() {
   const todayGym = useMemo(() => gym.filter(g => new Date(g.date).toDateString() === new Date().toDateString()), [gym]);
 
   return (
-    <div className="p-6 lg:p-8 grid-bg min-h-full">
+    <div className="p-6 lg:p-8 min-h-full">
       <motion.div variants={anim} initial="hidden" animate="show" className="max-w-[1400px] mx-auto space-y-6">
         <motion.div variants={fi} className="flex items-center justify-between">
           <div className="flex items-center gap-3">

@@ -60,7 +60,7 @@ export default function StudyPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8 grid-bg min-h-full">
+    <div className="p-6 lg:p-8 min-h-full">
       <motion.div initial="hidden" animate="show" variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } }} className="max-w-[1400px] mx-auto space-y-6 pb-24">
         
         {/* Header */}
@@ -80,6 +80,16 @@ export default function StudyPage() {
             <button onClick={() => setActiveTab('subjects')} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${activeTab === 'subjects' ? 'bg-[var(--accent-yellow)] text-black' : 'text-[var(--text-secondary)] hover:text-white'}`}>Subjects</button>
             <button onClick={() => setActiveTab('focus')} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${activeTab === 'focus' ? 'bg-gradient-to-r from-[var(--accent-cyan)] to-[var(--accent-blue)] text-white shadow-lg' : 'text-[var(--text-secondary)] hover:text-white'}`}>Focus Mode</button>
           </div>
+          
+          <button onClick={async () => {
+            if (settings?.id) {
+              await db.settings.update(settings.id, { summerBreakMode: true });
+              load();
+            }
+          }} className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[rgba(249,115,22,0.1)] text-orange-400 border border-orange-500/20 hover:bg-[rgba(249,115,22,0.2)] transition-colors text-xs font-bold uppercase tracking-wider">
+            <Sun className="w-3.5 h-3.5" />
+            Summer Break
+          </button>
         </motion.div>
 
         <AnimatePresence mode="wait">

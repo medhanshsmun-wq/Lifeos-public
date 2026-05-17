@@ -3,9 +3,10 @@
 import { useEffect, useState } from 'react';
 import Sidebar from '@/components/Sidebar';
 import { initializeDb, db } from '@/lib/db';
+import { serverDb } from '@/lib/serverDb';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles } from 'lucide-react';
 import { SpotifyProvider, useSpotify } from '@/lib/SpotifyContext';
+import ArcReactorLoader from '@/components/ArcReactorLoader';
 
 // ─── Spotify Ambient Controller ─────────────────────────────
 function AmbientController() {
@@ -29,7 +30,7 @@ function AmbientController() {
         if (!ctx) return;
         ctx.drawImage(img, 0, 0, 1, 1);
         const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
-        el.style.background = `radial-gradient(circle, rgba(${r},${g},${b},0.14) 0%, transparent 70%)`;
+        el.style.background = `radial-gradient(circle, rgba(${r},${g},${b},0.10) 0%, transparent 70%)`;
         el.classList.add('active');
       };
     } else {
@@ -68,48 +69,45 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    initializeDb().then(() => setTimeout(() => setLoading(false), 1000));
+    const syncHealth = async () => {
+      try {
+        const serverFitness = await serverDb.fitness.toArray();
+        const localFitness = await db.fitness.toArray();
+        for (const sf of serverFitness) {
+          const dStr = new Date(sf.date).toDateString();
+          const existing = localFitness.find(lf => new Date(lf.date).toDateString() === dStr);
+          if (existing) {
+            if (sf.steps > existing.steps || sf.activeMinutes > existing.activeMinutes) {
+              await db.fitness.update(existing.id!, {
+                steps: Math.max(existing.steps, sf.steps),
+                distance: Math.max(existing.distance, sf.distance),
+                caloriesBurned: Math.max(existing.caloriesBurned, sf.caloriesBurned),
+                activeMinutes: Math.max(existing.activeMinutes, sf.activeMinutes),
+                date: new Date(sf.date)
+              });
+            }
+          } else {
+            await db.fitness.add({
+              steps: sf.steps, distance: sf.distance, caloriesBurned: sf.caloriesBurned,
+              activeMinutes: sf.activeMinutes, date: new Date(sf.date), notes: sf.notes || 'Auto-synced'
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Health sync failed', e);
+      }
+    };
+
+    initializeDb()
+      .then(() => syncHealth())
+      .then(() => setTimeout(() => setLoading(false), 800));
   }, []);
 
   return (
     <AnimatePresence mode="wait">
       {loading ? (
-        <motion.div
-          key="boot"
-          initial={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.6 }}
-          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[var(--bg-0)]"
-        >
-          <motion.div
-            initial={{ scale: 0.5, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.6, ease: 'easeOut' }}
-            className="flex flex-col items-center gap-6"
-          >
-            <div className="relative">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] flex items-center justify-center shadow-lg" style={{ boxShadow: '0 0 60px var(--glow-accent)' }}>
-                <Sparkles className="w-8 h-8 text-white" />
-              </div>
-              <motion.div
-                className="absolute inset-0 rounded-2xl bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)]"
-                animate={{ scale: [1, 1.6, 1], opacity: [0.4, 0, 0.4] }}
-                transition={{ duration: 2, repeat: Infinity }}
-              />
-            </div>
-            <div className="text-center">
-              <h1 className="text-2xl font-bold gradient-text mb-1">LifeOS</h1>
-              <p className="text-xs text-[var(--text-2)] font-mono tracking-widest uppercase">Neural Interface Loading</p>
-            </div>
-            <div className="flex gap-1.5">
-              {[0, 1, 2].map(i => (
-                <motion.div key={i} className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]"
-                  animate={{ opacity: [0.2, 1, 0.2] }}
-                  transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
-                />
-              ))}
-            </div>
-          </motion.div>
+        <motion.div key="boot" exit={{ opacity: 0 }} transition={{ duration: 0.5 }}>
+          <ArcReactorLoader visible={true} />
         </motion.div>
       ) : (
         <SpotifyProvider>
@@ -119,12 +117,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             key="app"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 0.5 }}
-            className="flex h-full w-full overflow-hidden relative z-10"
+            transition={{ duration: 0.4 }}
+            className="flex flex-col-reverse md:flex-row h-full w-full overflow-hidden relative z-10"
           >
             <Sidebar />
-            <main className="flex-1 overflow-y-auto overflow-x-hidden scroll-smooth">
-              <div className="min-h-full">{children}</div>
+            <main className="flex-1 flex flex-col overflow-y-auto overflow-x-hidden scroll-smooth relative">
+              <div className="flex-1 w-full flex flex-col">{children}</div>
             </main>
           </motion.div>
         </SpotifyProvider>
