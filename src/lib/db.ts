@@ -180,6 +180,7 @@ export interface UserSettings {
   theme: string;
   accentColor: string;
   dashboardWidgets: string[];
+  widgetSizes?: Record<string, 'small' | 'large'>;
   name: string;
   avatar: string;
   propFirmAccountsCount: number;
@@ -191,6 +192,7 @@ export interface UserSettings {
   spotifyRefreshToken?: string;
   spotifyExpiresAt?: number;
   summerBreakMode?: boolean;
+  appleHealthEnabled?: boolean;
 }
 
 export interface Trade {
@@ -321,7 +323,7 @@ export async function initializeDb() {
       cloudBackupEnabled: false,
       theme: 'midnight',
       accentColor: '#00F5FF',
-      dashboardWidgets: ['activity-overview', 'trading-equity', 'active-projects', 'todos', 'productivity', 'habits', 'recent-activity', 'integrations', 'spotify'],
+      dashboardWidgets: ['activity-overview', 'trading-equity', 'active-projects', 'todos', 'productivity', 'recent-activity', 'integrations', 'spotify'],
       name: 'User',
       avatar: '',
       propFirmAccountsCount: 1,
@@ -347,12 +349,12 @@ export async function initializeDb() {
 
     const current = (await db.settings.toArray())[0];
     if (current && (!current.dashboardWidgets || !current.accentColor || current.propFirmAccountsCount === undefined || !current.dashboardWidgets.includes('todos'))) {
-      const widgets = current.dashboardWidgets || ['activity-overview', 'trading-equity', 'active-projects', 'productivity', 'habits', 'recent-activity', 'integrations', 'spotify'];
+      const widgets = current.dashboardWidgets || ['activity-overview', 'trading-equity', 'active-projects', 'productivity', 'recent-activity', 'integrations', 'spotify'];
       if (!widgets.includes('todos')) widgets.unshift('todos');
       if (!widgets.includes('spotify')) widgets.push('spotify');
 
       await db.settings.update(current.id!, {
-        dashboardWidgets: widgets.filter(w => w !== 'ai-insights'),
+        dashboardWidgets: widgets.filter(w => w !== 'ai-insights' && w !== 'habits'),
         accentColor: current.accentColor || '#00F5FF',
         propFirmAccountsCount: current.propFirmAccountsCount ?? 1
       });

@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Plug, GitBranch, Calendar, Music, BookOpen, Heart, Check, ExternalLink } from 'lucide-react';
+import { Plug, GitBranch, Calendar, Music, BookOpen, Heart, Check, ExternalLink, Download } from 'lucide-react';
 import { db, type UserSettings } from '@/lib/db';
 import { useSpotify } from '@/lib/SpotifyContext';
 
@@ -79,6 +79,9 @@ function IntegrationsContent() {
       const redirectUri = SPOTIFY_REDIRECT_URI;
       const authUrl = `https://accounts.spotify.com/authorize?client_id=${settings.spotifyClientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}`;
       window.location.href = authUrl;
+    } else if (name === 'Apple Health' && settings?.id) {
+      await db.settings.update(settings.id, { appleHealthEnabled: true });
+      setSettings(prev => prev ? { ...prev, appleHealthEnabled: true } : prev);
     }
   };
 
@@ -90,12 +93,15 @@ function IntegrationsContent() {
         spotifyExpiresAt: 0
       });
       setSettings(prev => prev ? { ...prev, spotifyAccessToken: '', spotifyRefreshToken: '', spotifyExpiresAt: 0 } : prev);
+    } else if (name === 'Apple Health' && settings?.id) {
+      await db.settings.update(settings.id, { appleHealthEnabled: false });
+      setSettings(prev => prev ? { ...prev, appleHealthEnabled: false } : prev);
     }
   };
 
   const integrations = [
     { name: 'GitHub', desc: 'Track commits, repos, and coding streaks', icon: GitBranch, connected: !!settings?.githubToken, color: '#ffffff', available: true },
-    { name: 'Apple Health', desc: 'Sync steps, distance, and activity data', icon: Heart, connected: hasHealthData, color: '#ff3b30', available: true },
+    { name: 'Apple Health', desc: 'Sync steps, distance, and activity data', icon: Heart, connected: !!settings?.appleHealthEnabled, color: '#ff3b30', available: true },
     { name: 'Google Calendar', desc: 'Import events and schedule analytics', icon: Calendar, connected: false, color: '#4285f4', available: false },
     { name: 'Spotify', desc: 'Track listening habits and focus music', icon: Music, connected: !!settings?.spotifyAccessToken, color: '#1db954', available: true },
     { name: 'Notion', desc: 'Import notes and knowledge base', icon: BookOpen, connected: false, color: '#ffffff', available: false },
@@ -106,7 +112,11 @@ function IntegrationsContent() {
       <motion.div initial="hidden" animate="show" variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } }} className="max-w-[1000px] mx-auto space-y-6">
         <motion.div variants={fi} className="flex items-center gap-3">
           <div className="p-2.5 rounded-xl bg-[rgba(59,130,246,0.1)]"><Plug className="w-5 h-5 text-[var(--accent-blue)]" /></div>
-          <div><h1 className="text-2xl font-bold">Integrations</h1><p className="text-xs text-[var(--text-tertiary)] font-mono">Modular, opt-in connections</p></div>
+          <div className="flex-1"><h1 className="text-2xl font-bold">Integrations</h1><p className="text-xs text-[var(--text-tertiary)] font-mono">Modular, opt-in connections</p></div>
+          <a href="/integrations-setup-guide.pdf" target="_blank" download className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)] hover:text-white hover:bg-[var(--bg-hover)] transition-all">
+            <Download className="w-4 h-4" />
+            Setup Guide
+          </a>
         </motion.div>
 
         <motion.div variants={fi} className="p-3 rounded-xl bg-[rgba(34,197,94,0.05)] border border-[rgba(34,197,94,0.1)]">
@@ -123,9 +133,7 @@ function IntegrationsContent() {
                   {int.connected ? (
                     <div className="flex items-center gap-2">
                       <span className="flex items-center gap-1 text-[10px] text-[var(--accent-green)]"><Check className="w-3 h-3" /> Connected</span>
-                      {int.name !== 'Apple Health' && (
-                        <button onClick={() => handleDisconnect(int.name)} className="px-2 py-1 rounded border border-red-500/20 text-[10px] text-red-400 hover:bg-red-500/10 transition-colors">Disconnect</button>
-                      )}
+                      <button onClick={() => handleDisconnect(int.name)} className="px-2 py-1 rounded border border-red-500/20 text-[10px] text-red-400 hover:bg-red-500/10 transition-colors">Disconnect</button>
                     </div>
                   ) : int.available ? (
                     <button onClick={() => handleConnect(int.name)} className="px-3 py-1 rounded-lg text-[10px] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--accent-cyan)] border border-[var(--border-subtle)] transition-colors">

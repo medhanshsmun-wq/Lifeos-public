@@ -15,6 +15,7 @@ import {
   ResponsiveContainer, PieChart as RPie, Pie, Cell, LineChart as RLine, Line,
   CartesianGrid
 } from 'recharts';
+import SystemModal from './SystemModal';
 
 const anim = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
 const fi = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0 } };
@@ -122,6 +123,7 @@ function TradingJournal({ trades, onAdd, onUpdate, viewMode, settings, onUpdateS
 }) {
   const [journalTab, setJournalTab] = useState<'dashboard' | 'calendar' | 'trades'>('dashboard');
   const [filter, setFilter] = useState({ ticker: '', side: 'all', status: 'all' });
+  const [modal, setModal] = useState<any>(null);
 
   const metrics = useMemo(() => {
     const closedTrades = trades.filter(t => t.status === 'Closed');
@@ -317,8 +319,24 @@ function TradingJournal({ trades, onAdd, onUpdate, viewMode, settings, onUpdateS
                     <td className="text-[var(--text-secondary)] font-mono">{(t.pnl / t.riskAmount).toFixed(2)}R</td>
                     <td className="text-[var(--text-tertiary)]">{new Date(t.entryTime).toLocaleDateString()}</td>
                     <td className="px-4">
-                      <button className="p-1.5 rounded-lg hover:bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]">
-                        <ChevronRight className="w-4 h-4" />
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setModal({
+                            isOpen: true,
+                            type: 'confirm',
+                            title: 'Delete Trade',
+                            message: 'Are you sure you want to delete this trade log?',
+                            onConfirm: async () => {
+                              await db.trades.delete(t.id!);
+                              onUpdate();
+                              setModal(null);
+                            }
+                          });
+                        }}
+                        className="p-1.5 rounded-lg hover:bg-red-500/10 text-[var(--text-muted)] hover:text-red-400 transition-colors"
+                      >
+                        <X className="w-4 h-4" />
                       </button>
                     </td>
                   </tr>
@@ -328,6 +346,9 @@ function TradingJournal({ trades, onAdd, onUpdate, viewMode, settings, onUpdateS
           </div>
         </motion.div>
       )}
+
+      <SystemModal isOpen={!!modal?.isOpen} type={modal?.type || 'alert'} title={modal?.title || ''} message={modal?.message || ''}
+        defaultValue={modal?.defaultValue} onConfirm={modal?.onConfirm || (() => {})} onCancel={() => setModal(null)} />
     </motion.div>
   );
 }

@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { db, type StudySession, type Subject, type StudyAssignment, type UserSettings } from '@/lib/db';
 import { GraduationCap, Plus, X, Clock, BookOpen, Star, TrendingUp, Play, Pause, Square, ListTodo, Sun, CheckCircle2, ChevronRight } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
+import SystemModal from './SystemModal';
 
 const fi = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0 } };
 
@@ -21,6 +22,7 @@ export default function StudyPage() {
   const [showSubjectModal, setShowSubjectModal] = useState(false);
   const [subjectToEdit, setSubjectToEdit] = useState<Subject | null>(null);
   const [showAssignmentModal, setShowAssignmentModal] = useState(false);
+  const [modal, setModal] = useState<any>(null);
 
   const load = async () => {
     const [sess, subs, asts, sets] = await Promise.all([
@@ -102,14 +104,21 @@ export default function StudyPage() {
               onBack={() => setSelectedSubjectId(null)}
               onEdit={(s: Subject) => { setSubjectToEdit(s); setShowSubjectModal(true); }}
               onDelete={async (id: number) => { 
-                if (confirm('Are you sure you want to delete this subject and all its assignments?')) {
-                  await Promise.all([
-                    db.subjects.delete(id),
-                    db.studyAssignments.where('subjectId').equals(id).delete()
-                  ]);
-                  setSelectedSubjectId(null);
-                  load();
-                }
+                setModal({
+                  isOpen: true,
+                  type: 'confirm',
+                  title: 'Delete Subject',
+                  message: 'Are you sure you want to delete this subject and all its assignments?',
+                  onConfirm: async () => {
+                    await Promise.all([
+                      db.subjects.delete(id),
+                      db.studyAssignments.where('subjectId').equals(id).delete()
+                    ]);
+                    setSelectedSubjectId(null);
+                    load();
+                    setModal(null);
+                  }
+                });
               }}
               load={load}
             />
@@ -142,6 +151,9 @@ export default function StudyPage() {
         />
       )}
       {showAssignmentModal && <AssignmentModal subjects={subjects} onClose={() => setShowAssignmentModal(false)} onSave={async (a: StudyAssignment) => { await db.studyAssignments.add(a); load(); setShowAssignmentModal(false); }} />}
+
+      <SystemModal isOpen={!!modal?.isOpen} type={modal?.type || 'alert'} title={modal?.title || ''} message={modal?.message || ''}
+        defaultValue={modal?.defaultValue} onConfirm={modal?.onConfirm || (() => {})} onCancel={() => setModal(null)} />
     </div>
   );
 }
@@ -652,6 +664,8 @@ function ConsistencyStreak({ sessions }: { sessions: StudySession[] }) {
 }
 
 function SubjectDetailView({ subject, sessions, assignments, onBack, onEdit, onDelete, load }: any) {
+  const [modal, setModal] = useState<any>(null);
+
   return (
     <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
       <div className="flex items-center justify-between">
@@ -696,14 +710,17 @@ function SubjectDetailView({ subject, sessions, assignments, onBack, onEdit, onD
             <div className="space-y-2">
               {assignments.length === 0 ? <p className="text-sm text-[var(--text-tertiary)]">No assignments for this subject.</p> : 
                 assignments.map((a: any) => (
-                  <div key={a.id} className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-hover)]">
+                  <div key={a.id} className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-hover)] group">
                     <div className="flex items-center gap-3">
                       <button onClick={async () => { await db.studyAssignments.update(a.id, { completed: !a.completed }); load(); }} className={`transition-colors ${a.completed ? 'text-[var(--accent-green)]' : 'text-[var(--text-tertiary)]'}`}>
                         <CheckCircle2 className="w-5 h-5" fill={a.completed ? 'currentColor' : 'none'} />
                       </button>
                       <span className={`text-sm ${a.completed ? 'line-through text-[var(--text-muted)]' : 'text-white'}`}>{a.title}</span>
                     </div>
-                    <span className="text-[10px] font-mono text-[var(--text-tertiary)]">{new Date(a.dueDate).toLocaleDateString()}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono text-[var(--text-tertiary)]">{new Date(a.dueDate).toLocaleDateString()}</span>
+                      <button onClick={(e) => { e.stopPropagation(); setModal({ isOpen: true, type: 'confirm', title: 'Delete Assignment', message: 'Are you sure you want to delete this assignment?', onConfirm: async () => { await db.studyAssignments.delete(a.id); load(); setModal(null); } }); }} className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/10 text-[var(--text-muted)] hover:text-red-400 transition-all"><X className="w-3.5 h-3.5" /></button>
+                    </div>
                   </div>
                 ))
               }
@@ -715,8 +732,9 @@ function SubjectDetailView({ subject, sessions, assignments, onBack, onEdit, onD
           <h3 className="text-sm font-semibold mb-4">Session History</h3>
           <div className="space-y-2 overflow-y-auto max-h-[400px] pr-1">
             {sessions.map((s: any) => (
-              <div key={s.id} className="p-3 rounded-xl bg-[var(--bg-hover)] border border-[var(--border-subtle)]">
-                <div className="flex justify-between items-start mb-1">
+              <div key={s.id} className="p-3 rounded-xl bg-[var(--bg-hover)] border border-[var(--border-subtle)] relative group">
+                <button onClick={(e) => { e.stopPropagation(); setModal({ isOpen: true, type: 'confirm', title: 'Delete Session', message: 'Are you sure you want to delete this study session?', onConfirm: async () => { await db.study.delete(s.id); load(); setModal(null); } }); }} className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/10 text-[var(--text-muted)] hover:text-red-400 transition-all"><X className="w-3.5 h-3.5" /></button>
+                <div className="flex justify-between items-start mb-1 pr-6">
                   <p className="text-xs font-medium text-white">{s.topic}</p>
                   <span className="text-[10px] text-[var(--text-tertiary)]">{s.duration}m</span>
                 </div>
@@ -726,6 +744,9 @@ function SubjectDetailView({ subject, sessions, assignments, onBack, onEdit, onD
           </div>
         </div>
       </div>
+
+      <SystemModal isOpen={!!modal?.isOpen} type={modal?.type || 'alert'} title={modal?.title || ''} message={modal?.message || ''}
+        defaultValue={modal?.defaultValue} onConfirm={modal?.onConfirm || (() => {})} onCancel={() => setModal(null)} />
     </motion.div>
   );
 }

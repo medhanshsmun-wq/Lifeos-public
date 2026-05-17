@@ -412,6 +412,26 @@ export default function ProjectDetailPage({ projectId }: { projectId: string }) 
                     <p className={`text-sm font-medium ${m.completed ? 'text-[var(--text-tertiary)] line-through' : 'text-[var(--text-primary)]'}`}>{m.title}</p>
                     {m.dueDate && <p className="text-[10px] text-[var(--text-muted)] mt-1 font-mono">Target: {new Date(m.dueDate).toLocaleDateString()}</p>}
                   </div>
+                  <button 
+                    onClick={(e) => { 
+                      e.stopPropagation(); 
+                      setModal({
+                        isOpen: true,
+                        type: 'confirm',
+                        title: 'Delete Milestone',
+                        message: 'Are you sure you want to delete this milestone?',
+                        onConfirm: async () => {
+                          const updated = project.milestones.filter(x => x.id !== m.id);
+                          await db.projects.update(project.id!, { milestones: updated, updatedAt: new Date() });
+                          load();
+                          setModal(null);
+                        }
+                      });
+                    }} 
+                    className="opacity-0 group-hover:opacity-100 p-2 rounded-lg hover:bg-red-500/10 text-[var(--text-muted)] hover:text-red-400 transition-all"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
               ))}
               {project.milestones.length === 0 && (

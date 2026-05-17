@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { db, type FitnessEntry, type DietEntry, type GymEntry } from '@/lib/db';
 import { Dumbbell, Footprints, Flame, Timer, TrendingUp, Plus, X, Target, Utensils, Activity, Brain } from 'lucide-react';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+import SystemModal from './SystemModal';
 
 const anim = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
 const fi = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0 } };
@@ -26,6 +27,7 @@ export default function FitnessPage() {
   const [gym, setGym] = useState<GymEntry[]>([]);
   const [showAddGym, setShowAddGym] = useState(false);
   const [gymSuggestion, setGymSuggestion] = useState('');
+  const [modal, setModal] = useState<any>(null);
 
   const load = async () => { 
     setFitness(await db.fitness.orderBy('date').toArray()); 
@@ -118,14 +120,17 @@ export default function FitnessPage() {
               </div>
               <div className="space-y-3">
                 {todayDiet.length === 0 ? <p className="text-xs text-[var(--text-muted)] text-center py-4">No meals logged today.</p> : todayDiet.map(d => (
-                  <div key={d.id} className="p-4 rounded-xl bg-[var(--bg-hover)] flex justify-between items-center">
+                  <div key={d.id} className="p-4 rounded-xl bg-[var(--bg-hover)] flex justify-between items-center group">
                     <div>
                       <p className="text-xs text-[var(--accent-orange)] font-semibold">{d.mealType}</p>
                       <p className="text-sm font-medium mt-0.5">{d.food}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-bold text-[var(--text-primary)]">{d.calories} kcal</p>
-                      <p className="text-[10px] text-[var(--text-tertiary)]">P: {d.protein}g | C: {d.carbs}g | F: {d.fat}g</p>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-[var(--text-primary)]">{d.calories} kcal</p>
+                        <p className="text-[10px] text-[var(--text-tertiary)]">P: {d.protein}g | C: {d.carbs}g | F: {d.fat}g</p>
+                      </div>
+                      <button onClick={(e) => { e.stopPropagation(); setModal({ isOpen: true, type: 'confirm', title: 'Delete Meal', message: 'Are you sure you want to delete this meal log?', onConfirm: async () => { await db.diet.delete(d.id!); load(); setModal(null); } }); }} className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-500/10 text-[var(--text-muted)] hover:text-red-400 transition-all"><X className="w-4 h-4" /></button>
                     </div>
                   </div>
                 ))}
@@ -143,7 +148,8 @@ export default function FitnessPage() {
                 <button onClick={() => setShowAddGym(true)} className="px-3 py-1.5 rounded-lg bg-[rgba(59,130,246,0.1)] text-[var(--accent-blue)] text-xs font-medium hover:bg-[rgba(59,130,246,0.2)] transition-colors flex items-center gap-1"><Plus className="w-3 h-3" /> Add Workout</button>
               </div>
               {todayGym.length === 0 ? <p className="text-xs text-[var(--text-muted)] text-center py-4">No workout logged today.</p> : todayGym.map(g => (
-                <div key={g.id} className="space-y-4">
+                <div key={g.id} className="space-y-4 relative group">
+                  <button onClick={(e) => { e.stopPropagation(); setModal({ isOpen: true, type: 'confirm', title: 'Delete Workout', message: 'Are you sure you want to delete this gym session?', onConfirm: async () => { await db.gym.delete(g.id!); load(); setModal(null); } }); }} className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-500/10 text-[var(--text-muted)] hover:text-red-400 transition-all z-10"><X className="w-4 h-4" /></button>
                   <div className="p-4 rounded-xl bg-[rgba(59,130,246,0.05)] border border-[rgba(59,130,246,0.1)]">
                     <p className="text-sm font-bold text-[var(--accent-blue)]">{g.isRestDay ? 'Rest Day' : g.muscleGroup}</p>
                   </div>
@@ -197,6 +203,9 @@ export default function FitnessPage() {
       {showAddGym && (
         <GymForm onClose={() => setShowAddGym(false)} onSave={async (g) => { await db.gym.add(g); load(); setShowAddGym(false); }} />
       )}
+
+      <SystemModal isOpen={!!modal?.isOpen} type={modal?.type || 'alert'} title={modal?.title || ''} message={modal?.message || ''}
+        defaultValue={modal?.defaultValue} onConfirm={modal?.onConfirm || (() => {})} onCancel={() => setModal(null)} />
     </div>
   );
 }

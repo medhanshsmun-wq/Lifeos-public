@@ -3,12 +3,11 @@
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { db, type Project, type FitnessEntry, type HabitEntry, type TimelineEvent, type StudySession, type UserSettings, type Trade, type Todo } from '@/lib/db';
+import { db, type Project, type FitnessEntry, type TimelineEvent, type StudySession, type UserSettings, type Trade, type Todo } from '@/lib/db';
 import {
   Activity,
   TrendingUp,
   Footprints,
-  Flame,
   FolderKanban,
   Clock,
   Zap,
@@ -19,6 +18,8 @@ import {
   Link as LinkIcon,
   CandlestickChart,
   ChevronRight,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -59,30 +60,42 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
   );
 }
 
+const DEFAULT_WIDGET_SIZES: Record<string, 'small' | 'large'> = {
+  'activity-overview': 'large',
+  'trading-equity': 'large',
+  'active-projects': 'large',
+  'spotify': 'small',
+  'todos': 'small',
+  'productivity': 'small',
+  'recent-activity': 'small',
+  'integrations': 'small',
+};
+
 export default function DashboardPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [trades, setTrades] = useState<Trade[]>([]);
   const [fitness, setFitness] = useState<FitnessEntry[]>([]);
-  const [habits, setHabits] = useState<HabitEntry[]>([]);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [studySessions, setStudySessions] = useState<StudySession[]>([]);
   const [todos, setTodos] = useState<Todo[]>([]);
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [githubLive, setGithubLive] = useState(false);
+  const [widgetSizes, setWidgetSizes] = useState<Record<string, 'small' | 'large'>>(DEFAULT_WIDGET_SIZES);
   const [greeting] = useState(() => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good morning';
     if (hour < 17) return 'Good afternoon';
     return 'Good evening';
   });
-  const [activeWidgets, setActiveWidgets] = useState<string[]>(['todos', 'productivity', 'habits', 'ai-insights', 'recent-activity', 'integrations']);
+  const [activeWidgets, setActiveWidgets] = useState<string[]>(['todos', 'productivity', 'recent-activity', 'integrations']);
+  const [tradingMode, setTradingMode] = useState<'Real' | 'Paper' | 'Prop'>('Real');
+
   useEffect(() => {
     const load = async () => {
-      const [p, t, fit, h, timelineData, s, study, todoData] = await Promise.all([
+      const [p, t, fit, timelineData, s, study, todoData] = await Promise.all([
         db.projects.toArray(),
         db.trades.toArray(),
         db.fitness.orderBy('date').reverse().limit(14).toArray(),
-        db.habits.toArray(),
         db.timeline.orderBy('date').reverse().limit(6).toArray(),
         db.settings.toArray(),
         db.study.toArray(),
@@ -91,7 +104,6 @@ export default function DashboardPage() {
       setProjects(p);
       setTrades(t);
       setFitness(fit.reverse());
-      setHabits(h);
       setTimeline(timelineData);
       setStudySessions(study);
       setTodos(todoData);
@@ -99,7 +111,7 @@ export default function DashboardPage() {
         setSettings(s[0]);
         if (s[0].githubToken) setGithubLive(true);
         
-        let w = s[0].dashboardWidgets || ['todos', 'productivity', 'habits', 'recent-activity', 'integrations'];
+        let w = s[0].dashboardWidgets || ['todos', 'productivity', 'recent-activity', 'integrations'];
         const wideWidgets = ['activity-overview', 'trading-equity', 'active-projects'];
         const missing = wideWidgets.filter(ww => !w.includes(ww));
         if (missing.length > 0) {
@@ -108,8 +120,13 @@ export default function DashboardPage() {
         if (!w.includes('spotify')) {
           w.push('spotify');
         }
-        w = w.filter(id => id !== 'ai-insights');
+        w = w.filter(id => id !== 'ai-insights' && id !== 'habits');
         setActiveWidgets(w);
+
+        // Load persisted widget sizes
+        if (s[0].widgetSizes) {
+          setWidgetSizes(prev => ({ ...prev, ...s[0].widgetSizes }));
+        }
       }
     };
     load();
@@ -120,23 +137,19 @@ export default function DashboardPage() {
     const activeProjects = projects.filter(p => p.status === 'Ongoing').length;
     const finishedProjects = projects.filter(p => p.status === 'Finished').length;
 
-    const realTrades = trades.filter(t => !t.isPaperTrade);
-    const totalPnl = realTrades.reduce((s, t) => s + (t.pnl || 0), 0);
-    const winRate = realTrades.length > 0 ? (realTrades.filter(t => t.pnl > 0).length / realTrades.length) * 100 : 0;
+    const activeTrades = trades.filter(t => {
+      if (tradingMode === 'Real') return !t.isPaperTrade && !t.propFirm;
+      if (tradingMode === 'Paper') return t.isPaperTrade;
+      if (tradingMode === 'Prop') return !!t.propFirm;
+      return true;
+    });
+    const totalPnl = activeTrades.reduce((s, t) => s + (t.pnl || 0), 0);
+    const winRate = activeTrades.length > 0 ? (activeTrades.filter(t => t.pnl > 0).length / activeTrades.length) * 100 : 0;
 
     const todaySteps = fitness.length > 0 ? fitness[fitness.length - 1]?.steps || 0 : 0;
     const totalSteps = fitness.reduce((s, f) => s + f.steps, 0);
     const avgSteps = fitness.length > 0 ? Math.round(totalSteps / fitness.length) : 0;
     const totalCalories = fitness.reduce((s, f) => s + f.caloriesBurned, 0);
-
-    const todayHabits = habits.filter(h => {
-      const d = new Date(h.date);
-      const today = new Date();
-      return d.toDateString() === today.toDateString();
-    });
-    const completedToday = todayHabits.filter(h => h.completed).length;
-    const totalToday = todayHabits.length;
-    const habitRate = totalToday > 0 ? Math.round((completedToday / totalToday) * 100) : 0;
 
     const todayTodos = todos.filter(t => {
       const d = new Date(t.date);
@@ -145,40 +158,35 @@ export default function DashboardPage() {
     });
     const completedTodos = todayTodos.filter(t => t.completed).length;
     const totalTodos = todayTodos.length;
-    const todoRate = totalTodos > 0 ? (completedTodos / totalTodos) * 100 : (completedToday > 0 ? 100 : 0); // fallback
+    const todoRate = totalTodos > 0 ? (completedTodos / totalTodos) * 100 : 0;
 
-    // Productivity score (composite)
+    // Productivity score (composite — habits removed, points redistributed)
     let productivityScore = 0;
     
     if (settings?.summerBreakMode) {
-      // Original calculation (no study)
-      const projectScore = Math.min((activeProjects + finishedProjects) * 5, 20);
-      const habitScore = Math.min(habitRate * 0.3, 30);
-      const fitnessScore = Math.min(avgSteps / 300, 25);
-      const todoScore = Math.min(todoRate * 0.25, 25);
-      productivityScore = Math.min(Math.round(projectScore + habitScore + fitnessScore + todoScore), 100);
+      const projectScore = Math.min((activeProjects + finishedProjects) * 7, 30);
+      const fitnessScore = Math.min(avgSteps / 250, 35);
+      const todoScore = Math.min(todoRate * 0.35, 35);
+      productivityScore = Math.min(Math.round(projectScore + fitnessScore + todoScore), 100);
     } else {
-      // Include study score
       // eslint-disable-next-line react-hooks/purity
       const now = Date.now();
       const last7DaysStudy = studySessions.filter(s => new Date(s.date).getTime() > now - 7 * 24 * 60 * 60 * 1000);
       const recentStudyMinutes = last7DaysStudy.reduce((sum, s) => sum + s.duration, 0);
       
-      const projectScore = Math.min((activeProjects + finishedProjects) * 5, 20);
-      const habitScore = Math.min(habitRate * 0.2, 20);
-      const fitnessScore = Math.min(avgSteps / 400, 20);
-      const studyScore = Math.min((recentStudyMinutes / 60) * 10, 20); // Max 20 pts for 2 hours of study
-      const todoScore = Math.min(todoRate * 0.2, 20);
+      const projectScore = Math.min((activeProjects + finishedProjects) * 5, 25);
+      const fitnessScore = Math.min(avgSteps / 350, 25);
+      const studyScore = Math.min((recentStudyMinutes / 60) * 10, 25);
+      const todoScore = Math.min(todoRate * 0.25, 25);
       
-      productivityScore = Math.min(Math.round(projectScore + habitScore + fitnessScore + studyScore + todoScore), 100);
+      productivityScore = Math.min(Math.round(projectScore + fitnessScore + studyScore + todoScore), 100);
     }
 
     return {
       activeProjects, finishedProjects, totalPnl, winRate,
-      todaySteps, avgSteps, totalCalories, habitRate, productivityScore,
-      completedToday, totalToday,
+      todaySteps, avgSteps, totalCalories, productivityScore,
     };
-  }, [projects, trades, fitness, habits, studySessions, settings, todos]);
+  }, [projects, trades, fitness, studySessions, settings, todos, tradingMode]);
 
   // Chart data
   const stepsChartData = useMemo(() => fitness.map((f, i) => ({
@@ -188,12 +196,19 @@ export default function DashboardPage() {
   })), [fitness]);
 
   const pnlCurveData = useMemo(() => {
+    const activeTrades = trades.filter(t => {
+      if (tradingMode === 'Real') return !t.isPaperTrade && !t.propFirm;
+      if (tradingMode === 'Paper') return t.isPaperTrade;
+      if (tradingMode === 'Prop') return !!t.propFirm;
+      return true;
+    });
+
     let running = 0;
-    return trades.slice(-14).map((t, i) => {
+    return activeTrades.slice(-14).map((t, i) => {
       running += (t.pnl || 0);
       return { day: `T${i+1}`, pnl: running };
     });
-  }, [trades]);
+  }, [trades, tradingMode]);
 
   const [draggedItem, setDraggedItem] = useState<number | null>(null);
 
@@ -222,13 +237,24 @@ export default function DashboardPage() {
   const handleDragEnd = async () => {
     setDraggedItem(null);
     if (settings?.id) {
-      await db.settings.update(settings.id, { dashboardWidgets: activeWidgets });
+      await db.settings.update(settings.id, { dashboardWidgets: activeWidgets, widgetSizes });
+    }
+  };
+
+  const toggleWidgetSize = async (widgetId: string) => {
+    const current = widgetSizes[widgetId] || 'small';
+    const next = current === 'large' ? 'small' : 'large';
+    const newSizes: Record<string, 'small' | 'large'> = { ...widgetSizes, [widgetId]: next };
+    setWidgetSizes(newSizes);
+    if (settings?.id) {
+      await db.settings.update(settings.id, { widgetSizes: newSizes as Record<string, 'small' | 'large'> });
     }
   };
 
   const renderWidget = (id: string) => {
     switch (id) {
-      case 'activity-overview':
+      case 'activity-overview': {
+        const isSmall = widgetSizes[id] === 'small';
         return (
           <div className="glass-card p-5 h-full cursor-grab active:cursor-grabbing">
             <div className="flex items-center justify-between mb-4">
@@ -238,7 +264,7 @@ export default function DashboardPage() {
               </div>
               <span className="text-[10px] font-medium text-[rgba(255,255,255,0.35)] tracking-[0.15em] uppercase">14 days</span>
             </div>
-            <ResponsiveContainer width="100%" height={220}>
+            <ResponsiveContainer width="100%" height={isSmall ? 150 : 220}>
               <AreaChart data={stepsChartData}>
                 <defs>
                   <linearGradient id="stepsGrad" x1="0" y1="0" x2="0" y2="1">
@@ -246,15 +272,17 @@ export default function DashboardPage() {
                     <stop offset="100%" stopColor="#6ee7b7" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <XAxis dataKey="day" axisLine={false} tickLine={false} />
-                <YAxis axisLine={false} tickLine={false} width={40} />
+                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: isSmall ? 9 : 11 }} />
+                <YAxis axisLine={false} tickLine={false} width={isSmall ? 30 : 40} tick={{ fontSize: isSmall ? 9 : 11 }} />
                 <Tooltip content={<ChartTooltip />} />
                 <Area type="monotone" dataKey="steps" stroke="#6ee7b7" strokeWidth={2} fill="url(#stepsGrad)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         );
-      case 'trading-equity':
+      }
+      case 'trading-equity': {
+        const isSmall = widgetSizes[id] === 'small';
         return (
           <div className="glass-card p-5 h-full cursor-grab active:cursor-grabbing">
             <div className="flex items-center justify-between mb-4">
@@ -262,9 +290,19 @@ export default function DashboardPage() {
                 <CandlestickChart className="w-4 h-4 text-[#a78bfa]" />
                 <h3 className="text-sm font-semibold text-white">Trading Equity Curve</h3>
               </div>
-              <span className="text-[10px] font-medium text-[rgba(255,255,255,0.35)] tracking-[0.15em] uppercase">Last 14</span>
+              <div className="flex bg-[rgba(255,255,255,0.04)] rounded-md p-0.5">
+                {(['Real', 'Paper', 'Prop'] as const).map(mode => (
+                  <button
+                    key={mode}
+                    onClick={(e) => { e.stopPropagation(); setTradingMode(mode); }}
+                    className={`px-2 py-0.5 text-[10px] font-medium rounded transition-colors ${tradingMode === mode ? 'bg-[#a78bfa] text-black' : 'text-[rgba(255,255,255,0.4)] hover:text-white'}`}
+                  >
+                    {mode}
+                  </button>
+                ))}
+              </div>
             </div>
-            <ResponsiveContainer width="100%" height={200}>
+            <ResponsiveContainer width="100%" height={isSmall ? 150 : 200}>
               <AreaChart data={pnlCurveData}>
                 <defs>
                   <linearGradient id="pnlGrad" x1="0" y1="0" x2="0" y2="1">
@@ -272,14 +310,15 @@ export default function DashboardPage() {
                     <stop offset="100%" stopColor="#a78bfa" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <XAxis dataKey="day" axisLine={false} tickLine={false} />
-                <YAxis axisLine={false} tickLine={false} width={50} />
+                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: isSmall ? 9 : 11 }} />
+                <YAxis axisLine={false} tickLine={false} width={isSmall ? 35 : 50} tick={{ fontSize: isSmall ? 9 : 11 }} />
                 <Tooltip content={<ChartTooltip />} />
                 <Area type="monotone" dataKey="pnl" stroke="#a78bfa" strokeWidth={2} fill="url(#pnlGrad)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         );
+      }
       case 'active-projects':
         return (
           <div className="glass-card p-5 h-full cursor-grab active:cursor-grabbing">
@@ -345,31 +384,6 @@ export default function DashboardPage() {
                   <span className="text-[10px] text-[rgba(255,255,255,0.35)]">/ 100</span>
                 </div>
               </div>
-            </div>
-          </div>
-        );
-      case 'habits':
-        return (
-          <div className="glass-card p-5 h-full cursor-grab active:cursor-grabbing">
-            <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-              <Flame className="w-4 h-4 text-[#f472b6]" />
-              Today&apos;s Habits
-            </h3>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-2xl font-bold text-white">{stats.completedToday}/{stats.totalToday}</span>
-              <span className="text-xs font-medium px-2.5 py-1 rounded-full" style={{
-                background: stats.habitRate >= 70 ? 'rgba(110,231,183,0.08)' : 'rgba(251,191,36,0.08)',
-                color: stats.habitRate >= 70 ? '#6ee7b7' : '#fbbf24',
-              }}>{stats.habitRate}%</span>
-            </div>
-            <div className="w-full h-1.5 rounded-full bg-[rgba(255,255,255,0.04)] overflow-hidden">
-              <motion.div
-                className="h-full rounded-full"
-                style={{ background: 'linear-gradient(90deg, #6ee7b7, #34d399)' }}
-                initial={{ width: 0 }}
-                animate={{ width: `${stats.habitRate}%` }}
-                transition={{ duration: 1, delay: 0.5 }}
-              />
             </div>
           </div>
         );
@@ -507,7 +521,8 @@ export default function DashboardPage() {
         {/* Drag-and-Drop Masonry/Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 grid-flow-dense pb-12">
           {activeWidgets.map((widgetId, index) => {
-            const isWide = ['activity-overview', 'trading-equity', 'active-projects'].includes(widgetId);
+            const size = widgetSizes[widgetId] || 'small';
+            const isWide = size === 'large';
             return (
               <motion.div
                 key={widgetId}
@@ -517,10 +532,19 @@ export default function DashboardPage() {
                 onDragEnter={(e) => handleDragEnter(e as unknown as React.DragEvent, index)}
                 onDragEnd={handleDragEnd}
                 onDragOver={(e) => e.preventDefault()}
-                className={`${isWide ? 'md:col-span-2 lg:col-span-2' : 'col-span-1'} ${draggedItem === index ? 'opacity-50 z-50 scale-[1.02]' : 'opacity-100'}`}
+                className={`relative group ${isWide ? 'md:col-span-2 lg:col-span-2' : 'col-span-1'} ${draggedItem === index ? 'opacity-50 z-50 scale-[1.02]' : 'opacity-100'}`}
                 transition={{ type: 'spring', stiffness: 300, damping: 30 }}
               >
                 {renderWidget(widgetId)}
+                <button
+                  onClick={(e) => { e.stopPropagation(); toggleWidgetSize(widgetId); }}
+                  draggable={false}
+                  className="absolute top-3 right-3 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
+                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)' }}
+                  title={isWide ? 'Shrink widget' : 'Expand widget'}
+                >
+                  {isWide ? <Minimize2 className="w-3 h-3 text-[rgba(255,255,255,0.5)]" /> : <Maximize2 className="w-3 h-3 text-[rgba(255,255,255,0.5)]" />}
+                </button>
               </motion.div>
             );
           })}
