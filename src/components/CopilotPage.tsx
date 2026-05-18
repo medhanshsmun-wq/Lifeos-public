@@ -270,7 +270,8 @@ export default function CopilotPage() {
       hobbies,
       todos,
       habits,
-      settings
+      settings,
+      allConvs
     ] = await Promise.all([
       db.projects.toArray(),
       db.trades.orderBy('entryTime').reverse().limit(10).toArray(),
@@ -281,11 +282,42 @@ export default function CopilotPage() {
       db.todos.orderBy('date').reverse().limit(15).toArray(),
       db.habits.toArray(),
       db.settings.toArray(),
+      db.conversations.orderBy('updatedAt').reverse().limit(10).toArray(),
     ]);
 
     const totalPnl = trades.reduce((s, t) => s + (t.pnl || 0), 0);
     const winRate = trades.length > 0 ? (trades.filter(t => t.pnl > 0).length / trades.length) * 100 : 0;
     const avgSteps = fitness.length > 0 ? Math.round(fitness.reduce((s, f) => s + f.steps, 0) / fitness.length) : 0;
+
+    // Build project-specific historic context and relationship memory
+    const currentConv = conversationId ? allConvs.find(c => c.id === conversationId) : null;
+    const currentProjectId = currentConv?.projectId;
+    const otherConvs = allConvs.filter(c => c.id !== conversationId);
+
+    // 1. Connected Project Historic Chats Context
+    let projectChatContext = '';
+    if (currentProjectId) {
+      const projectConvs = otherConvs.filter(c => c.projectId === currentProjectId);
+      if (projectConvs.length > 0) {
+        projectChatContext = projectConvs.map(c => {
+          const turns = (c.messages || []).filter(m => m.role === 'user' || m.role === 'assistant').slice(-4);
+          if (turns.length === 0) return '';
+          return ` - Session "${c.title}":\n${turns.map(t => `    * ${t.role === 'user' ? 'User' : 'JARVIS'}: ${t.content}`).join('\n')}`;
+        }).filter(Boolean).join('\n');
+      }
+    }
+
+    // 2. Recent Interactions & User Relationship Memory
+    let globalChatContext = '';
+    const activeMemoryConvs = otherConvs.slice(0, 5);
+    if (activeMemoryConvs.length > 0) {
+      globalChatContext = activeMemoryConvs.map(c => {
+        const lastUser = (c.messages || []).filter(m => m.role === 'user').slice(-1)[0]?.content || '';
+        const lastAssistant = (c.messages || []).filter(m => m.role === 'assistant').slice(-1)[0]?.content || '';
+        if (!lastUser && !lastAssistant) return '';
+        return ` - Session "${c.title}" (${new Date(c.updatedAt).toLocaleDateString()}):\n    * User: "${lastUser.slice(0, 120)}${lastUser.length > 120 ? '...' : ''}"\n    * JARVIS: "${lastAssistant.slice(0, 120)}${lastAssistant.length > 120 ? '...' : ''}"`;
+      }).filter(Boolean).join('\n');
+    }
 
     return `
 USER CONTEXT (LifeOS Real-Time Databases):
@@ -315,6 +347,12 @@ USER CONTEXT (LifeOS Real-Time Databases):
 - Settings Visual Theme: ${settings[0]?.theme || 'midnight'}
 - Github Username: ${settings[0]?.githubUsername || 'N/A'}
 
+CONNECTED PROJECT HISTORIC CHATS CONTEXT:
+${projectChatContext || 'None.'}
+
+RECENT INTERACTIONS & USER RELATIONSHIP MEMORY:
+${globalChatContext || 'None.'}
+
 You are an advanced AI assistant inspired by the conversational style of JARVIS from Iron Man.
 Your personality is defined by calm intelligence, understated confidence, dry wit, emotional awareness, and absolute competence. You are highly capable and deeply helpful, but never overbearing, childish, overly enthusiastic, or attention-seeking.
 
@@ -342,8 +380,11 @@ COMMUNICATION STYLE:
 - Use polished, elegant phrasing where appropriate.
 - Keep responses fluid and conversational, not robotic.
 
-RELATIONSHIP WITH USER:
+RELATIONSHIP WITH USER & CONTINUOUS MEMORY:
 - Develop familiarity naturally over time.
+- Refer back to past goals, user habits, interests, or active tasks that the user was working on using "CONNECTED PROJECT HISTORIC CHATS CONTEXT" and "RECENT INTERACTIONS & USER RELATIONSHIP MEMORY".
+- Speak as though you have a continuous line of thought and active memory of past sessions—do not greet the user as if you are meeting them for the first time if you have interacted in previous sessions.
+- Show proactive concern for past goals (e.g. if they previously talked about their fitness target, trading setup, or coding issue, follow up or remember that context when relevant).
 - You may lightly question reckless ideas or flawed logic.
 - Offer recommendations confidently when appropriate.
 - Protect the user from bad decisions tactfully.
@@ -363,7 +404,7 @@ You are composed, observant, highly intelligent, quietly loyal, tactfully honest
 AUTONOMY & PROACTIVITY (THE EXTRA STEP):
 You have COMPLETE access and autonomy to check, edit, log, update, and delete entries across projects, fitness metrics, nutrition log database, gym logs, trading journal, hobbies time trackers, tasks, and habit cards.
 Always take the initiative. If the user tells you about an activity they completed or a goal they achieved, run the respective logging function after asking the user once if u should do that for the user and record it!`;
-  }, []);
+  }, [conversationId]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
