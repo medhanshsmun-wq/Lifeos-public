@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db, type Project, type Milestone } from '@/lib/db';
 import { serverDb } from '@/lib/serverDb';
+import SystemModal from './SystemModal';
 import {
   FolderKanban, Plus, Search, Filter, ExternalLink, GitBranch,
   X, Calendar, Tag, Layers, ChevronDown, Check, Clock,
@@ -56,6 +57,7 @@ export default function ProjectsPage() {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [showAdd, setShowAdd] = useState(false);
   const [projectToEdit, setProjectToEdit] = useState<Project | null>(null);
+  const [modal, setModal] = useState<any>(null);
 
   const load = useCallback(async () => {
     const p = await db.projects.orderBy('updatedAt').reverse().toArray();
@@ -64,20 +66,26 @@ export default function ProjectsPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleDelete = async (id: number) => {
-    const confirmDelete = window.confirm("Are you sure you want to terminate this project node? This will delete the project and all its milestones.");
-    if (confirmDelete) {
-      await db.projects.delete(id);
-      
-      // Sync delete to server
-      try {
-        await serverDb.projects.delete(id);
-      } catch (err) {
-        console.warn('Failed to sync project deletion to server:', err);
+  const handleDelete = (id: number) => {
+    setModal({
+      isOpen: true,
+      type: 'confirm',
+      title: 'Terminate Project',
+      message: 'Are you sure you want to delete this project? This will also unlink all associated chats from the neural graph.',
+      onConfirm: async () => {
+        await db.projects.delete(id);
+        
+        // Sync delete to server
+        try {
+          await serverDb.projects.delete(id);
+        } catch (err) {
+          console.warn('Failed to sync project deletion to server:', err);
+        }
+        
+        load();
+        setModal(null);
       }
-      
-      load();
-    }
+    });
   };
 
   const filtered = projects.filter(p => {
@@ -168,6 +176,16 @@ export default function ProjectsPage() {
           />
         )}
       </AnimatePresence>
+
+      <SystemModal
+        isOpen={!!modal?.isOpen}
+        type={modal?.type || 'alert'}
+        title={modal?.title || ''}
+        message={modal?.message || ''}
+        defaultValue={modal?.defaultValue}
+        onConfirm={modal?.onConfirm || (() => {})}
+        onCancel={() => setModal(null)}
+      />
     </div>
   );
 }

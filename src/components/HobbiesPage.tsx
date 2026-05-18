@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { db, type HobbyEntry } from '@/lib/db';
 import { Gamepad2, Plus, X, Clock, TrendingUp, Trash2, Edit3 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import SystemModal from './SystemModal';
 
 const COLORS = ['#00d4ff', '#a855f7', '#ec4899', '#22c55e', '#f97316', '#3b82f6'];
 const fi = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0 } };
@@ -13,6 +14,7 @@ export default function HobbiesPage() {
   const [hobbies, setHobbies] = useState<HobbyEntry[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [editingHobby, setEditingHobby] = useState<HobbyEntry | null>(null);
+  const [modal, setModal] = useState<any>(null);
 
   const load = async () => { 
     setHobbies(await db.hobbies.orderBy('date').reverse().toArray()); 
@@ -160,11 +162,18 @@ export default function HobbiesPage() {
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>
                       <button 
-                        onClick={async () => {
-                          if (confirm(`Delete session for "${h.name}"?`)) {
-                            await db.hobbies.delete(h.id!);
-                            load();
-                          }
+                        onClick={() => {
+                          setModal({
+                            isOpen: true,
+                            type: 'confirm',
+                            title: 'Delete Session',
+                            message: `Delete session for "${h.name}"?`,
+                            onConfirm: async () => {
+                              await db.hobbies.delete(h.id!);
+                              load();
+                              setModal(null);
+                            }
+                          });
                         }}
                         className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-[rgba(239,68,68,0.1)] text-[var(--text-tertiary)] hover:text-red-400 transition-all"
                         title="Delete Session"
@@ -224,6 +233,16 @@ export default function HobbiesPage() {
           </div>
         </div>
       )}
+      {/* System Modal Integration */}
+      <SystemModal
+        isOpen={!!modal?.isOpen}
+        type={modal?.type || 'alert'}
+        title={modal?.title || ''}
+        message={modal?.message || ''}
+        defaultValue={modal?.defaultValue}
+        onConfirm={modal?.onConfirm || (() => {})}
+        onCancel={() => setModal(null)}
+      />
     </div>
   );
 }
