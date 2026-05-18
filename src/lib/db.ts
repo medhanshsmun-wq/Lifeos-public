@@ -354,7 +354,7 @@ export async function initializeDb() {
       if (!widgets.includes('spotify')) widgets.push('spotify');
 
       await db.settings.update(current.id!, {
-        dashboardWidgets: widgets.filter(w => w !== 'ai-insights' && w !== 'habits'),
+        dashboardWidgets: widgets.filter(w => w !== 'ai-insights'),
         accentColor: current.accentColor || '#00F5FF',
         propFirmAccountsCount: current.propFirmAccountsCount ?? 1
       });

@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { db, type Project, type FitnessEntry, type TimelineEvent, type StudySession, type UserSettings, type Trade, type Todo } from '@/lib/db';
+import { db, type Project, type FitnessEntry, type TimelineEvent, type StudySession, type UserSettings, type Trade, type Todo, type HabitEntry } from '@/lib/db';
 import {
   Activity,
   TrendingUp,
@@ -20,6 +20,8 @@ import {
   ChevronRight,
   Maximize2,
   Minimize2,
+  Flame,
+  Check,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -78,6 +80,7 @@ export default function DashboardPage() {
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [studySessions, setStudySessions] = useState<StudySession[]>([]);
   const [todos, setTodos] = useState<Todo[]>([]);
+  const [habits, setHabits] = useState<HabitEntry[]>([]);
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [githubLive, setGithubLive] = useState(false);
   const [widgetSizes, setWidgetSizes] = useState<Record<string, 'small' | 'large'>>(DEFAULT_WIDGET_SIZES);
@@ -92,7 +95,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const load = async () => {
-      const [p, t, fit, timelineData, s, study, todoData] = await Promise.all([
+      const [p, t, fit, timelineData, s, study, todoData, habitData] = await Promise.all([
         db.projects.toArray(),
         db.trades.toArray(),
         db.fitness.orderBy('date').reverse().limit(14).toArray(),
@@ -100,6 +103,7 @@ export default function DashboardPage() {
         db.settings.toArray(),
         db.study.toArray(),
         db.todos.toArray(),
+        db.habits.toArray(),
       ]);
       setProjects(p);
       setTrades(t);
@@ -107,6 +111,7 @@ export default function DashboardPage() {
       setTimeline(timelineData);
       setStudySessions(study);
       setTodos(todoData);
+      setHabits(habitData);
       if (s[0]) {
         setSettings(s[0]);
         if (s[0].githubToken) setGithubLive(true);
@@ -120,7 +125,7 @@ export default function DashboardPage() {
         if (!w.includes('spotify')) {
           w.push('spotify');
         }
-        w = w.filter(id => id !== 'ai-insights' && id !== 'habits');
+        w = w.filter(id => id !== 'ai-insights');
         setActiveWidgets(w);
 
         // Load persisted widget sizes
@@ -160,33 +165,45 @@ export default function DashboardPage() {
     const totalTodos = todayTodos.length;
     const todoRate = totalTodos > 0 ? (completedTodos / totalTodos) * 100 : 0;
 
-    // Productivity score (composite — habits removed, points redistributed)
+    // Habits statistics
+    const uniqueNames = Array.from(new Set(habits.map(h => h.habitName)));
+    const todayStr = new Date().toDateString();
+    const todayHabitLogs = habits.filter(h => new Date(h.date).toDateString() === todayStr);
+    
+    const completedToday = todayHabitLogs.filter(h => h.completed).length;
+    const totalToday = uniqueNames.length;
+    const habitRate = totalToday > 0 ? (completedToday / totalToday) * 100 : 0;
+
+    // Productivity score (composite — includes habits)
     let productivityScore = 0;
     
     if (settings?.summerBreakMode) {
-      const projectScore = Math.min((activeProjects + finishedProjects) * 7, 30);
-      const fitnessScore = Math.min(avgSteps / 250, 35);
-      const todoScore = Math.min(todoRate * 0.35, 35);
-      productivityScore = Math.min(Math.round(projectScore + fitnessScore + todoScore), 100);
+      const projectScore = Math.min((activeProjects + finishedProjects) * 6, 25);
+      const fitnessScore = Math.min(avgSteps / 300, 25);
+      const todoScore = Math.min(todoRate * 0.25, 25);
+      const habitScore = Math.min(habitRate * 0.25, 25);
+      productivityScore = Math.min(Math.round(projectScore + fitnessScore + todoScore + habitScore), 100);
     } else {
       // eslint-disable-next-line react-hooks/purity
       const now = Date.now();
       const last7DaysStudy = studySessions.filter(s => new Date(s.date).getTime() > now - 7 * 24 * 60 * 60 * 1000);
       const recentStudyMinutes = last7DaysStudy.reduce((sum, s) => sum + s.duration, 0);
       
-      const projectScore = Math.min((activeProjects + finishedProjects) * 5, 25);
-      const fitnessScore = Math.min(avgSteps / 350, 25);
-      const studyScore = Math.min((recentStudyMinutes / 60) * 10, 25);
-      const todoScore = Math.min(todoRate * 0.25, 25);
+      const projectScore = Math.min((activeProjects + finishedProjects) * 4, 20);
+      const fitnessScore = Math.min(avgSteps / 400, 20);
+      const studyScore = Math.min((recentStudyMinutes / 60) * 8, 20);
+      const todoScore = Math.min(todoRate * 0.20, 20);
+      const habitScore = Math.min(habitRate * 0.20, 20);
       
-      productivityScore = Math.min(Math.round(projectScore + fitnessScore + studyScore + todoScore), 100);
+      productivityScore = Math.min(Math.round(projectScore + fitnessScore + studyScore + todoScore + habitScore), 100);
     }
 
     return {
       activeProjects, finishedProjects, totalPnl, winRate,
       todaySteps, avgSteps, totalCalories, productivityScore,
+      completedToday, totalToday, habitRate,
     };
-  }, [projects, trades, fitness, studySessions, settings, todos, tradingMode]);
+  }, [projects, trades, fitness, studySessions, settings, todos, habits, tradingMode]);
 
   // Chart data
   const stepsChartData = useMemo(() => fitness.map((f, i) => ({
@@ -251,8 +268,112 @@ export default function DashboardPage() {
     }
   };
 
+  // Unique habits list based on all-time log entries
+  const habitsList = useMemo(() => {
+    const uniqueNames = Array.from(new Set(habits.map(e => e.habitName)));
+    return uniqueNames.map(name => {
+      const habitEntries = habits.filter(e => e.habitName === name);
+      return {
+        name,
+        entries: habitEntries,
+      };
+    });
+  }, [habits]);
+
   const renderWidget = (id: string) => {
     switch (id) {
+      case 'habits': {
+        const isSmall = widgetSizes[id] === 'small';
+        return (
+          <div className="glass-card p-5 h-full cursor-grab active:cursor-grabbing flex flex-col justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-white mb-2 flex items-center gap-2">
+                <Flame className="w-4 h-4 text-pink-400" />
+                Today&apos;s Habits
+              </h3>
+              
+              {!isSmall ? (
+                /* Habits Inline List */
+                <div className="space-y-2 mt-3 overflow-y-auto max-h-[140px] pr-1">
+                  {habitsList.map(habit => {
+                    const todayStr = new Date().toDateString();
+                    const todayLog = habit.entries.find(e => new Date(e.date).toDateString() === todayStr);
+                    const isCompleted = !!todayLog?.completed;
+                    
+                    return (
+                      <div key={habit.name} className="flex items-center justify-between p-2 rounded-xl bg-white/[.02] border border-white/[.04] hover:bg-white/[.04] transition-all">
+                        <span className={`text-xs ${isCompleted ? 'line-through text-[rgba(255,255,255,0.3)]' : 'text-white'} truncate flex-1 pr-2`}>
+                          {habit.name}
+                        </span>
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            const today = new Date();
+                            const existingLog = habits.find(h => h.habitName === habit.name && new Date(h.date).toDateString() === today.toDateString());
+                            if (existingLog) {
+                              await db.habits.update(existingLog.id!, { completed: !existingLog.completed });
+                            } else {
+                              await db.habits.add({
+                                habitName: habit.name,
+                                completed: true,
+                                date: today,
+                                streak: 0
+                              });
+                            }
+                            const updated = await db.habits.toArray();
+                            setHabits(updated);
+                          }}
+                          className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all ${
+                            isCompleted
+                              ? 'bg-pink-500 border-pink-500 text-white'
+                              : 'border-white/20 text-transparent hover:border-pink-500/50'
+                          }`}
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                  {habitsList.length === 0 && (
+                    <p className="text-[11px] text-[rgba(255,255,255,0.35)] italic py-4 text-center">No habits added yet. Add in the Habits tab!</p>
+                  )}
+                </div>
+              ) : (
+                /* Condensed stats */
+                <div className="flex items-center justify-between py-3">
+                  <div className="text-2xl font-bold text-white">{stats.completedToday}/{stats.totalToday}</div>
+                  <span className="text-[10px] font-semibold text-pink-400 bg-pink-500/5 border border-pink-500/10 px-2.5 py-1 rounded-full uppercase tracking-wider">
+                    {stats.habitRate}% done
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Bottom Progress Bar */}
+            <div className="mt-3">
+              {isSmall && (
+                <div className="flex items-center justify-between text-[8px] font-mono text-[rgba(255,255,255,0.35)] mb-1">
+                  <span>PROGRESS</span>
+                </div>
+              )}
+              {!isSmall && (
+                <div className="flex items-center justify-between text-[10px] font-mono text-[rgba(255,255,255,0.35)] mb-1.5 border-t border-white/[0.04] pt-2">
+                  <span>STREAK SUMMARY</span>
+                  <span className="text-pink-400 font-bold">{stats.completedToday}/{stats.totalToday} completed</span>
+                </div>
+              )}
+              <div className="w-full h-1.5 rounded-full bg-[rgba(255,255,255,0.04)] overflow-hidden">
+                <motion.div
+                  className="h-full rounded-full bg-gradient-to-r from-pink-500 to-rose-400"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${stats.habitRate}%` }}
+                  transition={{ duration: 0.6, ease: 'easeOut' }}
+                />
+              </div>
+            </div>
+          </div>
+        );
+      }
       case 'activity-overview': {
         const isSmall = widgetSizes[id] === 'small';
         return (

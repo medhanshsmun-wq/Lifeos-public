@@ -207,6 +207,7 @@ model UserSettings {
   spotifyRefreshToken   String?
   spotifyExpiresAt      BigInt?
   summerBreakMode       Boolean  @default(false)
+  appleHealthEnabled    Boolean  @default(false)
 }
 
 model Trade {

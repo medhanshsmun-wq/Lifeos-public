@@ -14,6 +14,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Check if Apple Health integration is enabled in Settings
+    const settings = await prisma.userSettings.findFirst();
+    if (!settings || !(settings as any).appleHealthEnabled) {
+      return NextResponse.json({ error: 'Apple Health sync is disabled in user settings' }, { status: 403 });
+    }
+
     // Determine today's boundaries (local time of the server)
     const today = new Date();
     today.setHours(0, 0, 0, 0);

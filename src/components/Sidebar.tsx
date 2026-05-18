@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Bot, FolderKanban, Gamepad2, Dumbbell, CandlestickChart,
   GraduationCap, BarChart3, FileText, Plug, Download, Settings,
-  GitBranch, Music, Play, Pause, SkipForward, Search, X, Menu,
+  GitBranch, Music, Play, Pause, SkipForward, Search, X, Menu, Flame,
 } from 'lucide-react';
 import { useSpotify } from '@/lib/SpotifyContext';
 
@@ -21,6 +21,7 @@ const NAV = [
     { label: 'Hobbies', icon: Gamepad2, href: '/hobbies' },
     { label: 'Fitness', icon: Dumbbell, href: '/fitness' },
     { label: 'Study', icon: GraduationCap, href: '/study' },
+    { label: 'Habits', icon: Flame, href: '/habits' },
   ]},
   { section: 'Finance', items: [
     { label: 'Trading', icon: CandlestickChart, href: '/finance' },
