@@ -3,10 +3,11 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Plug, GitBranch, Calendar, Music, BookOpen, Heart, Check, ExternalLink, Download } from 'lucide-react';
+import { Plug, GitBranch, Calendar, Music, BookOpen, Heart, Check, ExternalLink, Download, X, Copy } from 'lucide-react';
 import { db, type UserSettings } from '@/lib/db';
 import { serverDb } from '@/lib/serverDb';
 import { useSpotify } from '@/lib/SpotifyContext';
+import { useAuth } from '@/components/auth/AuthContext';
 
 const fi = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0 } };
 
@@ -23,6 +24,138 @@ const getSpotifyRedirectUri = () => {
   return 'http://127.0.0.1:3000/api/auth/callback/spotify';
 };
 
+// ─── Apple Health Setup Modal ───────────────────────────────
+interface HealthSyncGuideModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  email: string;
+  serverUrl: string;
+}
+
+function HealthSyncGuideModal({ isOpen, onClose, email, serverUrl }: HealthSyncGuideModalProps) {
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  if (!isOpen) return null;
+
+  const copyToClipboard = (text: string, field: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
+      <div className="glass-card w-full max-w-[650px] max-h-[85vh] overflow-y-auto p-6 relative space-y-6">
+        <button onClick={onClose} className="absolute top-4 right-4 p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-white/70 hover:text-white transition-all">
+          <X className="w-4 h-4" />
+        </button>
+
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-[rgba(255,59,48,0.1)]">
+            <Heart className="w-5 h-5 text-[#ff3b30]" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold">iOS Apple Health Sync Guide</h2>
+            <p className="text-xs text-[var(--text-tertiary)]">Step-by-step setup for your iPhone</p>
+          </div>
+        </div>
+
+        <div className="space-y-4 text-xs text-[var(--text-secondary)] leading-relaxed">
+          <p>
+            LifeOS integrates with your iPhone's local health database using a custom iOS Shortcut. Once configured, your daily health stats will sync seamlessly to your central dashboard in the background!
+          </p>
+
+          <div className="border border-white/5 bg-black/40 rounded-xl p-4 space-y-3 font-mono">
+            <h3 className="text-[11px] font-bold text-white uppercase tracking-wider">📋 Copy-Paste Details</h3>
+            
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white/[0.02] border border-white/5">
+                <div>
+                  <span className="text-[9px] text-[var(--text-tertiary)] block">API ENDPOINT URL</span>
+                  <span className="text-white text-xs select-all">{serverUrl}</span>
+                </div>
+                <button onClick={() => copyToClipboard(serverUrl, 'url')} className="shrink-0 p-1.5 rounded bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] text-[var(--accent-cyan)] flex items-center gap-1 transition-all">
+                  {copiedField === 'url' ? 'Copied!' : <><Copy className="w-3.5 h-3.5" /> Copy</>}
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white/[0.02] border border-white/5">
+                <div>
+                  <span className="text-[9px] text-[var(--text-tertiary)] block">ACCOUNT EMAIL</span>
+                  <span className="text-white text-xs select-all">{email}</span>
+                </div>
+                <button onClick={() => copyToClipboard(email, 'email')} className="shrink-0 p-1.5 rounded bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] text-[var(--accent-cyan)] flex items-center gap-1 transition-all">
+                  {copiedField === 'email' ? 'Copied!' : <><Copy className="w-3.5 h-3.5" /> Copy</>}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold flex items-center gap-2 text-white">🛠️ Setup Instructions</h3>
+            
+            <div className="space-y-4 border-l border-white/10 pl-4 ml-2">
+              <div className="relative">
+                <div className="absolute -left-[21px] top-0.5 w-2 h-2 rounded-full bg-[#ff3b30] shadow-[0_0_8px_rgba(255,59,48,0.6)]" />
+                <span className="font-bold text-white block">Step 1: Open Shortcuts app</span>
+                <span>Launch the **Shortcuts** app on your iPhone and create a new personal shortcut.</span>
+              </div>
+
+              <div className="relative">
+                <div className="absolute -left-[21px] top-0.5 w-2 h-2 rounded-full bg-[#ff3b30]" />
+                <span className="font-bold text-white block">Step 2: Collect Health Samples</span>
+                <span>Add the **"Find Health Samples"** or **"Get Health Data"** actions for:</span>
+                <ul className="list-disc pl-4 mt-1 text-[11px] text-[var(--text-tertiary)] space-y-1">
+                  <li>**Steps**: Set Start Date to **Today** and Group By **Sum**</li>
+                  <li>**Distance**: Set Start Date to **Today** and Group By **Sum**</li>
+                  <li>**Active Energy (Calories)**: Set Start Date to **Today** and Group By **Sum**</li>
+                  <li>**Active Minutes**: Set Start Date to **Today** and Group By **Sum**</li>
+                </ul>
+              </div>
+
+              <div className="relative">
+                <div className="absolute -left-[21px] top-0.5 w-2 h-2 rounded-full bg-[#ff3b30]" />
+                <span className="font-bold text-white block">Step 3: Add URL Action</span>
+                <span>Add the **"Get Contents of URL"** action and configure it:</span>
+                <ul className="list-disc pl-4 mt-1 text-[11px] text-[var(--text-tertiary)] space-y-1">
+                  <li>Set URL to the **API Endpoint URL** copied above.</li>
+                  <li>Set Method to **POST**.</li>
+                  <li>Under Request Body, select **JSON** and add these key-value pairs:
+                    <ul className="list-none pl-2 mt-1 space-y-0.5 font-mono text-[10px] text-white/90">
+                      <li>• `apiKey`: `[Your APPLE_HEALTH_SECRET]`</li>
+                      <li>• `email`: `[Your Account Email copied above]`</li>
+                      <li>• `steps`: Select the Steps Sample output (Sum)</li>
+                      <li>• `distance`: Select the Distance Sample output (Sum)</li>
+                      <li>• `caloriesBurned`: Select the Active Energy output (Sum)</li>
+                      <li>• `activeMinutes`: Select the Active Minutes output (Sum)</li>
+                    </ul>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="relative">
+                <div className="absolute -left-[21px] top-0.5 w-2 h-2 rounded-full bg-[#ff3b30]" />
+                <span className="font-bold text-white block">Step 4: Enable Automation Trigger</span>
+                <span>Go to the **Automation** tab in your iPhone's Shortcuts app:</span>
+                <ul className="list-disc pl-4 mt-1 text-[11px] text-[var(--text-tertiary)] space-y-1">
+                  <li>Create a **Personal Automation** (e.g., triggered at **Time of Day**: 10:00 PM, or every time you close your Fitness App).</li>
+                  <li>Configure it to run the Shortcut in the background without asking.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-2">
+          <button onClick={onClose} className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[var(--accent-cyan)] to-[var(--accent-purple)] text-white hover:opacity-90 font-medium text-xs transition-all">
+            Done, Ready to Sync!
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function IntegrationsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -30,6 +163,16 @@ function IntegrationsContent() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [hasHealthData, setHasHealthData] = useState(false);
   const { forceFetch } = useSpotify();
+  
+  const { user } = useAuth();
+  const [showHealthGuide, setShowHealthGuide] = useState(false);
+  const [serverUrl, setServerUrl] = useState('');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setServerUrl(window.location.origin + '/api/health-sync');
+    }
+  }, []);
 
   useEffect(() => {
     const init = async () => {
@@ -164,11 +307,26 @@ function IntegrationsContent() {
                   )}
                 </div>
                 <p className="text-xs text-[var(--text-tertiary)]">{int.desc}</p>
+                {int.name === 'Apple Health' && int.connected && (
+                  <button 
+                    onClick={() => setShowHealthGuide(true)} 
+                    className="mt-3 text-[10px] text-[var(--accent-cyan)] flex items-center gap-1 hover:underline font-mono uppercase tracking-wider font-bold"
+                  >
+                    <ExternalLink className="w-3 h-3" /> Get iOS Shortcut Guide
+                  </button>
+                )}
               </div>
             </motion.div>
           ))}
         </div>
       </motion.div>
+
+      <HealthSyncGuideModal 
+        isOpen={showHealthGuide} 
+        onClose={() => setShowHealthGuide(false)} 
+        email={user?.email || ''} 
+        serverUrl={serverUrl} 
+      />
     </div>
   );
 }
