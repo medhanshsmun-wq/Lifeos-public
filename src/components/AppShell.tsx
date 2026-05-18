@@ -209,9 +209,67 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             // @ts-ignore
             const localItems = await db[table.name].toArray();
 
-            // A. Down-sync (Server -> Local)
+            // A. Deduplicate server items before syncing
+            let uniqueServerItems: any[] = [];
+            const seen = new Set<string>();
+            const duplicatesToDelete: any[] = [];
+
             if (serverItems && serverItems.length > 0) {
-              for (const item of serverItems) {
+              // Sort server items by id descending, so we keep the latest one
+              const sortedServer = [...serverItems].sort((a: any, b: any) => b.id - a.id);
+              
+              for (const item of sortedServer) {
+                let key = '';
+                if (table.name === 'projects') {
+                  key = `${item.title.trim()}_${(item.description || '').trim()}`;
+                } else if (table.name === 'hobbies') {
+                  key = `${item.name.trim()}_${new Date(item.date).toDateString()}_${item.timeSpent}`;
+                } else if (table.name === 'finance') {
+                  key = `${item.description.trim()}_${item.amount}_${new Date(item.date).toDateString()}`;
+                } else if (table.name === 'fitness') {
+                  key = `${new Date(item.date).toDateString()}`;
+                } else if (table.name === 'diet') {
+                  key = `${item.mealType}_${item.food.trim()}_${new Date(item.date).toDateString()}`;
+                } else if (table.name === 'gym') {
+                  key = `${item.muscleGroup}_${new Date(item.date).toDateString()}`;
+                } else if (table.name === 'study') {
+                  key = `${item.subject}_${item.topic.trim()}_${new Date(item.date).toDateString()}`;
+                } else if (table.name === 'habits') {
+                  key = `${item.habitName.trim()}_${new Date(item.date).toDateString()}`;
+                } else if (table.name === 'trades') {
+                  key = `${item.ticker.trim()}_${new Date(item.entryTime).toDateString()}`;
+                } else if (table.name === 'todos') {
+                  key = `${item.task.trim()}_${new Date(item.date).toDateString()}`;
+                } else {
+                  key = `${item.id}`;
+                }
+
+                if (seen.has(key)) {
+                  duplicatesToDelete.push(item);
+                } else {
+                  seen.add(key);
+                  uniqueServerItems.push(item);
+                }
+              }
+
+              // Delete duplicates from server and local Dexie
+              if (duplicatesToDelete.length > 0) {
+                console.log(`🧼 Cleaning up ${duplicatesToDelete.length} duplicates from table "${table.name}"...`);
+                for (const dup of duplicatesToDelete) {
+                  try {
+                    await table.server.delete(dup.id);
+                    // @ts-ignore
+                    await db[table.name].delete(dup.id);
+                  } catch (delErr) {
+                    console.warn(`Failed to delete duplicate for ${table.name}:`, delErr);
+                  }
+                }
+              }
+            }
+
+            // B. Down-sync (Server -> Local)
+            if (uniqueServerItems && uniqueServerItems.length > 0) {
+              for (const item of uniqueServerItems) {
                 const formattedItem = { ...item };
                 
                 // Convert date fields
@@ -298,14 +356,97 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               }
             }
 
-            // B. Up-sync (Local -> Server)
+            // C. Up-sync (Local -> Server)
             if (localItems && localItems.length > 0) {
+              const uniqueLocalKeys = new Set<string>();
               for (const localItem of localItems) {
+                // Determine a unique key for the local item to prevent uploading local duplicates
+                let key = '';
+                if (table.name === 'projects') {
+                  key = `${localItem.title.trim()}_${(localItem.description || '').trim()}`;
+                } else if (table.name === 'hobbies') {
+                  key = `${localItem.name.trim()}_${new Date(localItem.date).toDateString()}_${localItem.timeSpent}`;
+                } else if (table.name === 'finance') {
+                  key = `${localItem.description.trim()}_${localItem.amount}_${new Date(localItem.date).toDateString()}`;
+                } else if (table.name === 'fitness') {
+                  key = `${new Date(localItem.date).toDateString()}`;
+                } else if (table.name === 'diet') {
+                  key = `${localItem.mealType}_${localItem.food.trim()}_${new Date(localItem.date).toDateString()}`;
+                } else if (table.name === 'gym') {
+                  key = `${localItem.muscleGroup}_${new Date(localItem.date).toDateString()}`;
+                } else if (table.name === 'study') {
+                  key = `${localItem.subject}_${localItem.topic.trim()}_${new Date(localItem.date).toDateString()}`;
+                } else if (table.name === 'habits') {
+                  key = `${localItem.habitName.trim()}_${new Date(localItem.date).toDateString()}`;
+                } else if (table.name === 'trades') {
+                  key = `${localItem.ticker.trim()}_${new Date(localItem.entryTime).toDateString()}`;
+                } else if (table.name === 'todos') {
+                  key = `${localItem.task.trim()}_${new Date(localItem.date).toDateString()}`;
+                } else {
+                  key = `${localItem.id}`;
+                }
+
+                if (uniqueLocalKeys.has(key)) {
+                  // Duplicate local item that hasn't been uploaded, just delete it locally
+                  // @ts-ignore
+                  await db[table.name].delete(localItem.id);
+                  continue;
+                }
+                uniqueLocalKeys.add(key);
+
                 // Check if it exists on the server
-                const serverMatch = serverItems.find((si: any) => si.id === localItem.id);
+                const serverMatch = uniqueServerItems.find((si: any) => si.id === localItem.id);
                 if (!serverMatch) {
                   try {
-                    await table.server.add(localItem);
+                    const savedServerItem = await table.server.add(localItem);
+                    if (savedServerItem && savedServerItem.id && savedServerItem.id !== localItem.id) {
+                      // Delete temporary local item and write the one with the server-assigned ID
+                      // @ts-ignore
+                      await db[table.name].delete(localItem.id);
+                      
+                      // Convert Date strings to objects if needed
+                      const formattedSavedItem = { ...savedServerItem };
+                      for (const key of Object.keys(formattedSavedItem)) {
+                        const val = formattedSavedItem[key];
+                        if (typeof val === 'string' && (
+                          key === 'date' || 
+                          key === 'dueDate' || 
+                          key === 'createdAt' || 
+                          key === 'updatedAt' || 
+                          key === 'entryTime' || 
+                          key === 'exitTime' || 
+                          key === 'timestamp' || 
+                          key === 'weekStart' || 
+                          key === 'weekEnd'
+                        )) {
+                          formattedSavedItem[key] = new Date(val);
+                        }
+                      }
+                      
+                      // Parse JSON strings back to arrays/objects for Dexie
+                      if (table.name === 'projects') {
+                        for (const f of ['tags', 'techStack', 'links', 'files']) {
+                          if (typeof formattedSavedItem[f] === 'string') {
+                            try { formattedSavedItem[f] = JSON.parse(formattedSavedItem[f]); } catch { formattedSavedItem[f] = []; }
+                          }
+                        }
+                      }
+                      if (table.name === 'weeklyReports') {
+                        if (typeof formattedSavedItem.highlights === 'string') {
+                          try { formattedSavedItem.highlights = JSON.parse(formattedSavedItem.highlights); } catch { formattedSavedItem.highlights = []; }
+                        }
+                      }
+                      if (table.name === 'trades') {
+                        for (const f of ['mistakes', 'tags']) {
+                          if (typeof formattedSavedItem[f] === 'string') {
+                            try { formattedSavedItem[f] = JSON.parse(formattedSavedItem[f]); } catch { formattedSavedItem[f] = []; }
+                          }
+                        }
+                      }
+
+                      // @ts-ignore
+                      await db[table.name].add(formattedSavedItem);
+                    }
                   } catch (addErr) {
                     console.warn(`Up-sync failed for ${table.name} item ID ${localItem.id}:`, addErr);
                   }
@@ -325,14 +466,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
     let active = true;
     initializeDb()
-      .then(() => {
+      .then(async () => {
         if (!active) return;
-        // Run autoRegister and cloudSync asynchronously in the background
         autoRegisterNewDay();
-        syncAllFromCloud();
         
-        // Load the page UI instantly without waiting for sync network rounds
-        setTimeout(() => setLoading(false), 300);
+        // Wait for cloud sync to finish so the user sees all their data instantly on first boot!
+        // Timeout fallback of 3.5 seconds to guarantee page loads even on offline/poor networks.
+        await Promise.race([
+          syncAllFromCloud(),
+          new Promise((resolve) => setTimeout(resolve, 3500))
+        ]);
+        
+        setLoading(false);
       });
 
     const intervalId = setInterval(() => {
