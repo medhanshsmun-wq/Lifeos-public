@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db, type ChatMessage } from '@/lib/db';
+import { serverDb } from '@/lib/serverDb';
 import {
   Send, Sparkles, Maximize2, Minimize2, Trash2,
   Loader2, Plus, X, Edit3, Paperclip,
@@ -77,6 +78,58 @@ export default function CopilotPage() {
     init();
   }, []);
 
+  // Helper to trigger background sync
+  const triggerBackgroundSync = () => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('lifeos-trigger-sync'));
+    }
+  };
+
+  // Synchronized database operations for real-time cloud backup
+  const syncAddConversation = async (data: any) => {
+    let serverId: number | undefined;
+    try {
+      const serverChat = await serverDb.conversations.add(data);
+      if (serverChat && serverChat.id) {
+        serverId = serverChat.id;
+      }
+    } catch (e) {
+      console.warn("Cloud chat creation failed, using local fallback", e);
+    }
+    const localId = await db.conversations.add({
+      ...(serverId ? { id: serverId } : {}),
+      ...data
+    });
+    triggerBackgroundSync();
+    return localId;
+  };
+
+  const syncUpdateConversation = async (id: number, data: any) => {
+    await db.conversations.update(id, data);
+    try {
+      const fullConv = await db.conversations.get(id);
+      if (fullConv) {
+        await serverDb.conversations.put({
+          id,
+          ...fullConv
+        });
+      }
+    } catch (e) {
+      console.warn("Cloud chat update failed", e);
+    }
+    triggerBackgroundSync();
+  };
+
+  const syncDeleteConversation = async (id: number) => {
+    await db.conversations.delete(id);
+    try {
+      await serverDb.conversations.delete(id);
+    } catch (e) {
+      console.warn("Cloud chat deletion failed", e);
+    }
+    triggerBackgroundSync();
+  };
+
   const loadHistory = async (currentActiveId?: number) => {
     const list = await db.conversations.orderBy('updatedAt').reverse().toArray();
     // Proactively clean up any duplicate empty "New Session" chats
@@ -84,7 +137,7 @@ export default function CopilotPage() {
     const toDelete = list.filter(c => c.title === 'New Session' && (!c.messages || c.messages.length === 0) && c.id !== activeId);
     if (toDelete.length > 0) {
       for (const item of toDelete) {
-        await db.conversations.delete(item.id!);
+        await syncDeleteConversation(item.id!);
       }
       setAllConversations(await db.conversations.orderBy('updatedAt').reverse().toArray());
     } else {
@@ -93,7 +146,7 @@ export default function CopilotPage() {
   };
 
   const startNewChat = async () => {
-    const id = await db.conversations.add({ title: 'New Session', messages: [], createdAt: new Date(), updatedAt: new Date() });
+    const id = await syncAddConversation({ title: 'New Session', messages: [], createdAt: new Date(), updatedAt: new Date() });
     setConversationId(id as number); setMessages([]); setLinkedProjectId(undefined); loadHistory(id as number);
   };
 
@@ -104,7 +157,7 @@ export default function CopilotPage() {
 
   const deleteChat = async (id: number) => {
     setAllConversations(p => p.filter(c => c.id !== id));
-    await db.conversations.delete(id);
+    await syncDeleteConversation(id);
     conversationId === id ? await startNewChat() : await loadHistory();
   };
 
@@ -113,12 +166,12 @@ export default function CopilotPage() {
     if (!chat) return;
     setModal({
       isOpen: true, type: 'prompt', title: 'Rename Session', message: 'New name:', defaultValue: chat.title,
-      onConfirm: async (t) => { if (t?.trim()) { await db.conversations.update(id, { title: t.trim(), updatedAt: new Date() }); loadHistory(); } setModal(null); }
+      onConfirm: async (t) => { if (t?.trim()) { await syncUpdateConversation(id, { title: t.trim(), updatedAt: new Date() }); loadHistory(); } setModal(null); }
     });
   };
 
   const linkProject = async (pid: number | undefined) => {
-    if (conversationId) { await db.conversations.update(conversationId, { projectId: pid }); setLinkedProjectId(pid); loadHistory(); }
+    if (conversationId) { await syncUpdateConversation(conversationId, { projectId: pid }); setLinkedProjectId(pid); loadHistory(); }
   };
 
   const handleEditMessage = async (index: number, newContent: string) => {
@@ -138,7 +191,7 @@ export default function CopilotPage() {
       // For assistant messages, just update the content in-place without regenerating
       const updatedMessages = messages.map((m, i) => i === index ? { ...m, content: newContent } : m);
       setMessages(updatedMessages);
-      await db.conversations.update(conversationId, { messages: updatedMessages, updatedAt: new Date() });
+      await syncUpdateConversation(conversationId, { messages: updatedMessages, updatedAt: new Date() });
       setEditingIndex(null);
     }
   };
@@ -159,7 +212,7 @@ export default function CopilotPage() {
     }
 
     setMessages(updatedMessages);
-    await db.conversations.update(conversationId, { messages: updatedMessages, updatedAt: new Date() });
+    await syncUpdateConversation(conversationId, { messages: updatedMessages, updatedAt: new Date() });
     loadHistory();
   };
 
@@ -294,7 +347,7 @@ Always take the initiative. If the user tells you about an activity they complet
 
     if (msgText.startsWith('/rename ') && conversationId) {
       const t = msgText.replace('/rename ', '').trim();
-      if (t) { await db.conversations.update(conversationId, { title: t, updatedAt: new Date() }); loadHistory(); setMessages(p => [...p, { role: 'assistant', content: `Session renamed to: ${t}`, timestamp: new Date() }]); setInput(''); return; }
+      if (t) { await syncUpdateConversation(conversationId, { title: t, updatedAt: new Date() }); loadHistory(); setMessages(p => [...p, { role: 'assistant', content: `Session renamed to: ${t}`, timestamp: new Date() }]); setInput(''); return; }
     }
 
     sendingRef.current = true;
@@ -307,7 +360,7 @@ Always take the initiative. If the user tells you about an activity they complet
     }
 
     setMessages(newMessages);
-    if (conversationId) { await db.conversations.update(conversationId, { messages: newMessages, updatedAt: new Date() }); loadHistory(); }
+    if (conversationId) { await syncUpdateConversation(conversationId, { messages: newMessages, updatedAt: new Date() }); loadHistory(); }
     if (!customHistory) setInput('');
     setLoading(true);
 
@@ -900,6 +953,9 @@ Always take the initiative. If the user tells you about an activity they complet
           });
         }
 
+        // Trigger real-time background cloud synchronization for all database mutations
+        triggerBackgroundSync();
+
         try {
           const parsedBody = JSON.parse(body);
           const modelContent = data?.candidates?.[0]?.content;
@@ -953,7 +1009,7 @@ Always take the initiative. If the user tells you about an activity they complet
               if (r.ok) { const d = await r.json(); const t = d.candidates?.[0]?.content?.parts?.[0]?.text?.replace(/[\"*]/g, '').trim(); if (t) title = t; }
             } catch { }
           }
-          await db.conversations.update(conversationId, { messages: finalMessages, title, updatedAt: new Date() });
+          await syncUpdateConversation(conversationId, { messages: finalMessages, title, updatedAt: new Date() });
           loadHistory();
         }
       }

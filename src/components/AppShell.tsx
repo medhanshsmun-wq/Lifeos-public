@@ -69,6 +69,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let lastSyncTime = 0;
+    let syncInProgress = false;
+
     const autoRegisterNewDay = async () => {
       try {
         const todayStr = new Date().toDateString();
@@ -138,7 +141,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       }
     };
 
-    const syncAllFromCloud = async () => {
+    const syncAllFromCloud = async (isManual = false) => {
+      if (syncInProgress) {
+        console.log('⏳ Cloud sync already in progress, skipping concurrent run...');
+        return;
+      }
+
+      // Throttle non-manual syncs to once every 30 seconds to conserve API limits
+      const now = Date.now();
+      if (!isManual && now - lastSyncTime < 30000) {
+        console.log('⚡ Cloud sync throttled (ran less than 30s ago), skipping...');
+        return;
+      }
+
+      syncInProgress = true;
       try {
         console.log('🔄 Initiating full cloud sync from Supabase...');
         
@@ -240,6 +256,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   key = `${item.ticker.trim()}_${new Date(item.entryTime).toDateString()}`;
                 } else if (table.name === 'todos') {
                   key = `${item.task.trim()}_${new Date(item.date).toDateString()}`;
+                } else if (table.name === 'conversations') {
+                  key = `${item.title.trim()}_${new Date(item.createdAt).toDateString()}`;
+                } else if (table.name === 'weeklyReports') {
+                  key = `${new Date(item.weekStart).toDateString()}_${new Date(item.weekEnd).toDateString()}`;
+                } else if (table.name === 'timeline') {
+                  key = `${item.title.trim()}_${new Date(item.date).toDateString()}`;
                 } else {
                   key = `${item.id}`;
                 }
@@ -382,6 +404,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   key = `${localItem.ticker.trim()}_${new Date(localItem.entryTime).toDateString()}`;
                 } else if (table.name === 'todos') {
                   key = `${localItem.task.trim()}_${new Date(localItem.date).toDateString()}`;
+                } else if (table.name === 'conversations') {
+                  key = `${localItem.title.trim()}_${new Date(localItem.createdAt).toDateString()}`;
+                } else if (table.name === 'weeklyReports') {
+                  key = `${new Date(localItem.weekStart).toDateString()}_${new Date(localItem.weekEnd).toDateString()}`;
+                } else if (table.name === 'timeline') {
+                  key = `${localItem.title.trim()}_${new Date(localItem.date).toDateString()}`;
                 } else {
                   key = `${localItem.id}`;
                 }
@@ -461,6 +489,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         }));
       } catch (e) {
         console.error('Error during full bidirectional sync:', e);
+      } finally {
+        lastSyncTime = Date.now();
+        syncInProgress = false;
       }
     };
 
@@ -517,9 +548,35 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       if (active) autoRegisterNewDay();
     }, 30000);
 
+    const handleFocusSync = () => {
+      if (active) {
+        console.log('🔄 Window focused, triggering automatic cloud sync...');
+        syncAllFromCloud();
+      }
+    };
+    window.addEventListener('focus', handleFocusSync);
+
+    const handleTriggerSync = () => {
+      if (active) {
+        console.log('⚡ App mutation event, triggering cloud sync...');
+        syncAllFromCloud();
+      }
+    };
+    window.addEventListener('lifeos-trigger-sync', handleTriggerSync);
+
+    const syncIntervalId = setInterval(() => {
+      if (active) {
+        console.log('🕒 Periodic background cloud sync...');
+        syncAllFromCloud();
+      }
+    }, 15000);
+
     return () => {
       active = false;
       clearInterval(intervalId);
+      clearInterval(syncIntervalId);
+      window.removeEventListener('focus', handleFocusSync);
+      window.removeEventListener('lifeos-trigger-sync', handleTriggerSync);
     };
   }, []);
 
