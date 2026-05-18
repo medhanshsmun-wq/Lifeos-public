@@ -221,6 +221,14 @@ export const SpotifyProvider = ({ children }: { children: React.ReactNode }) => 
   // Initialize Web Playback SDK
   useEffect(() => {
     const initSDK = async () => {
+      // Bypassed on mobile devices since Spotify Web SDK does not support mobile web browsers
+      const isMobile = typeof window !== 'undefined' && 
+        (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.maxTouchPoints && navigator.maxTouchPoints > 1));
+      if (isMobile) {
+        console.log('[Spotify] Mobile environment detected. Bypassing Web Playback SDK initialization.');
+        return;
+      }
+
       const token = await getValidToken();
       if (!token) return;
 
