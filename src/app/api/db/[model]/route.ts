@@ -35,6 +35,11 @@ function processDataForPrisma(model: string, data: any, isCreate = true): any {
     delete processed.id;
   }
 
+  // Remove widgetSizes from userSettings as it is not in the Prisma schema
+  if (model === 'userSettings' && processed.widgetSizes !== undefined) {
+    delete processed.widgetSizes;
+  }
+
   // Convert array/object fields to JSON strings where Prisma expects strings
   const jsonFields = JSON_STRING_FIELDS[model] || [];
   for (const field of jsonFields) {

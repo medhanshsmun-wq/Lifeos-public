@@ -156,6 +156,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             const parsedSObj = {
               ...sObj,
               dashboardWidgets: typeof sObj.dashboardWidgets === 'string' ? JSON.parse(sObj.dashboardWidgets) : (sObj.dashboardWidgets || []),
+              widgetSizes: typeof sObj.widgetSizes === 'string' ? JSON.parse(sObj.widgetSizes) : (sObj.widgetSizes || undefined),
               spotifyExpiresAt: sObj.spotifyExpiresAt ? Number(sObj.spotifyExpiresAt) : undefined,
               cloudBackupEnabled: !!sObj.cloudBackupEnabled,
               summerBreakMode: !!sObj.summerBreakMode,
@@ -169,16 +170,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             activeSettings = parsedSObj;
           } else {
             console.log('📤 Syncing local settings to Supabase...');
+            const { widgetSizes, ...settingsToSync } = activeSettings;
             await serverDb.settings.put({
               id: 1,
-              ...activeSettings
+              ...settingsToSync
             });
           }
         } else if (activeSettings) {
           console.log('📤 Uploading local settings to Supabase...');
+          const { widgetSizes, ...settingsToSync } = activeSettings;
           await serverDb.settings.put({
             id: 1,
-            ...activeSettings
+            ...settingsToSync
           });
         }
 
@@ -226,6 +229,39 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     key === 'weekEnd'
                   )) {
                     formattedItem[key] = new Date(val);
+                  }
+                }
+
+                // Parse JSON strings back to arrays/objects for Dexie
+                if (table.name === 'projects') {
+                  for (const f of ['tags', 'techStack', 'links', 'files']) {
+                    if (typeof formattedItem[f] === 'string') {
+                      try {
+                        formattedItem[f] = JSON.parse(formattedItem[f]);
+                      } catch {
+                        formattedItem[f] = [];
+                      }
+                    }
+                  }
+                }
+                if (table.name === 'weeklyReports') {
+                  if (typeof formattedItem.highlights === 'string') {
+                    try {
+                      formattedItem.highlights = JSON.parse(formattedItem.highlights);
+                    } catch {
+                      formattedItem.highlights = [];
+                    }
+                  }
+                }
+                if (table.name === 'trades') {
+                  for (const f of ['mistakes', 'tags']) {
+                    if (typeof formattedItem[f] === 'string') {
+                      try {
+                        formattedItem[f] = JSON.parse(formattedItem[f]);
+                      } catch {
+                        formattedItem[f] = [];
+                      }
+                    }
                   }
                 }
 
