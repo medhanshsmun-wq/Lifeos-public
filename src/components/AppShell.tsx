@@ -606,7 +606,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <Sidebar />
             <main className="flex-1 flex flex-col overflow-y-auto overflow-x-hidden scroll-smooth relative">
               {/* Premium Floating Manual Sync Action Button */}
-              <div className="fixed top-4 right-4 md:top-6 md:right-6 z-50">
+              <div className="fixed bottom-20 right-4 md:bottom-6 md:right-6 z-50">
                 <button
                   onClick={() => {
                     window.dispatchEvent(new CustomEvent('lifeos-trigger-sync', { detail: { isManual: true } }));
