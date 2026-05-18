@@ -63,7 +63,6 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
 }
 
 const DEFAULT_WIDGET_SIZES: Record<string, 'small' | 'large'> = {
-  'activity-overview': 'large',
   'trading-equity': 'large',
   'active-projects': 'large',
   'spotify': 'small',
@@ -117,7 +116,8 @@ export default function DashboardPage() {
         if (s[0].githubToken) setGithubLive(true);
         
         let w = s[0].dashboardWidgets || ['todos', 'productivity', 'recent-activity', 'integrations'];
-        const wideWidgets = ['activity-overview', 'trading-equity', 'active-projects'];
+        w = w.filter(id => id !== 'activity-overview' && id !== 'ai-insights');
+        const wideWidgets = ['trading-equity', 'active-projects'];
         const missing = wideWidgets.filter(ww => !w.includes(ww));
         if (missing.length > 0) {
           w = [...missing, ...w];
@@ -125,7 +125,6 @@ export default function DashboardPage() {
         if (!w.includes('spotify')) {
           w.push('spotify');
         }
-        w = w.filter(id => id !== 'ai-insights');
         setActiveWidgets(w);
 
         // Load persisted widget sizes
@@ -151,7 +150,9 @@ export default function DashboardPage() {
     const totalPnl = activeTrades.reduce((s, t) => s + (t.pnl || 0), 0);
     const winRate = activeTrades.length > 0 ? (activeTrades.filter(t => t.pnl > 0).length / activeTrades.length) * 100 : 0;
 
-    const todaySteps = fitness.length > 0 ? fitness[fitness.length - 1]?.steps || 0 : 0;
+    const todayStr = new Date().toDateString();
+    const todayFitness = fitness.find(f => new Date(f.date).toDateString() === todayStr);
+    const todaySteps = todayFitness ? todayFitness.steps : 0;
     const totalSteps = fitness.reduce((s, f) => s + f.steps, 0);
     const avgSteps = fitness.length > 0 ? Math.round(totalSteps / fitness.length) : 0;
     const totalCalories = fitness.reduce((s, f) => s + f.caloriesBurned, 0);
@@ -167,7 +168,6 @@ export default function DashboardPage() {
 
     // Habits statistics
     const uniqueNames = Array.from(new Set(habits.map(h => h.habitName)));
-    const todayStr = new Date().toDateString();
     const todayHabitLogs = habits.filter(h => new Date(h.date).toDateString() === todayStr);
     
     const completedToday = todayHabitLogs.filter(h => h.completed).length;
@@ -200,17 +200,12 @@ export default function DashboardPage() {
 
     return {
       activeProjects, finishedProjects, totalPnl, winRate,
-      todaySteps, avgSteps, totalCalories, productivityScore,
+      todaySteps, todayFitness, avgSteps, totalCalories, productivityScore,
       completedToday, totalToday, habitRate,
     };
   }, [projects, trades, fitness, studySessions, settings, todos, habits, tradingMode]);
 
-  // Chart data
-  const stepsChartData = useMemo(() => fitness.map((f, i) => ({
-    day: `D${i + 1}`,
-    steps: f.steps,
-    calories: f.caloriesBurned,
-  })), [fitness]);
+  // Steps chart data moved to Analytics page
 
   const pnlCurveData = useMemo(() => {
     const activeTrades = trades.filter(t => {
@@ -374,34 +369,7 @@ export default function DashboardPage() {
           </div>
         );
       }
-      case 'activity-overview': {
-        const isSmall = widgetSizes[id] === 'small';
-        return (
-          <div className="glass-card p-5 h-full cursor-grab active:cursor-grabbing">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Activity className="w-4 h-4 text-[#6ee7b7]" />
-                <h3 className="text-sm font-semibold text-white">Activity Overview</h3>
-              </div>
-              <span className="text-[10px] font-medium text-[rgba(255,255,255,0.35)] tracking-[0.15em] uppercase">14 days</span>
-            </div>
-            <ResponsiveContainer width="100%" height={isSmall ? 150 : 220}>
-              <AreaChart data={stepsChartData}>
-                <defs>
-                  <linearGradient id="stepsGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#6ee7b7" stopOpacity={0.25} />
-                    <stop offset="100%" stopColor="#6ee7b7" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: isSmall ? 9 : 11 }} />
-                <YAxis axisLine={false} tickLine={false} width={isSmall ? 30 : 40} tick={{ fontSize: isSmall ? 9 : 11 }} />
-                <Tooltip content={<ChartTooltip />} />
-                <Area type="monotone" dataKey="steps" stroke="#6ee7b7" strokeWidth={2} fill="url(#stepsGrad)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        );
-      }
+
       case 'trading-equity': {
         const isSmall = widgetSizes[id] === 'small';
         return (
@@ -627,7 +595,7 @@ export default function DashboardPage() {
             icon={<Footprints className="w-4 h-4" />}
             label="Steps Today"
             value={stats.todaySteps.toLocaleString()}
-            sub={`${stats.avgSteps.toLocaleString()} avg`}
+            sub={stats.todayFitness ? `${stats.todayFitness.distance.toFixed(1)} km · ${stats.todayFitness.caloriesBurned} kcal` : '0.0 km · 0 kcal'}
             color="#6ee7b7"
           />
           <StatCard

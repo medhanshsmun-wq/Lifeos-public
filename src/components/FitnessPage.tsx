@@ -18,11 +18,15 @@ function CT({ active, payload, label }: { active?: boolean; payload?: Array<{ va
 export default function FitnessPage() {
   const [tab, setTab] = useState<'activity' | 'diet' | 'gym'>('activity');
 
+  // Selected Date for historical logging
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+
   // Activity Data
   const [fitness, setFitness] = useState<FitnessEntry[]>([]);
   // Diet Data
   const [diet, setDiet] = useState<DietEntry[]>([]);
   const [showAddDiet, setShowAddDiet] = useState(false);
+  const [editingDiet, setEditingDiet] = useState<DietEntry | null>(null);
   // Gym Data
   const [gym, setGym] = useState<GymEntry[]>([]);
   const [showAddGym, setShowAddGym] = useState(false);
@@ -45,15 +49,18 @@ export default function FitnessPage() {
   const chartData = fitness.slice(-14).map((f, i) => ({ day: `D${i + 1}`, steps: f.steps, calories: f.caloriesBurned, active: f.activeMinutes }));
 
   // --- Diet Stats ---
-  const todayDiet = useMemo(() => diet.filter(d => new Date(d.date).toDateString() === new Date().toDateString()), [diet]);
-  const todayMacros = useMemo(() => {
-    return todayDiet.reduce((acc, curr) => ({
+  const selectedDiet = useMemo(() => {
+    return diet.filter(d => new Date(d.date).toDateString() === selectedDate.toDateString());
+  }, [diet, selectedDate]);
+
+  const selectedMacros = useMemo(() => {
+    return selectedDiet.reduce((acc, curr) => ({
       calories: acc.calories + curr.calories,
       protein: acc.protein + curr.protein,
       carbs: acc.carbs + curr.carbs,
       fat: acc.fat + curr.fat,
     }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
-  }, [todayDiet]);
+  }, [selectedDiet]);
 
   // --- Gym Stats ---
   const todayGym = useMemo(() => gym.filter(g => new Date(g.date).toDateString() === new Date().toDateString()), [gym]);
@@ -107,30 +114,147 @@ export default function FitnessPage() {
         {/* === DIET TAB === */}
         {tab === 'diet' && (
           <motion.div variants={anim} initial="hidden" animate="show" className="space-y-6">
-            <motion.div variants={fi} className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="glass-card p-5 border-l-4 border-l-[var(--accent-orange)]"><h3 className="text-xs text-[var(--text-tertiary)]">Calories</h3><p className="text-2xl font-bold mt-1">{todayMacros.calories} <span className="text-xs font-normal text-[var(--text-muted)]">kcal</span></p></div>
-              <div className="glass-card p-5 border-l-4 border-l-[var(--accent-cyan)]"><h3 className="text-xs text-[var(--text-tertiary)]">Protein</h3><p className="text-2xl font-bold mt-1">{todayMacros.protein} <span className="text-xs font-normal text-[var(--text-muted)]">g</span></p></div>
-              <div className="glass-card p-5 border-l-4 border-l-[var(--accent-green)]"><h3 className="text-xs text-[var(--text-tertiary)]">Carbs</h3><p className="text-2xl font-bold mt-1">{todayMacros.carbs} <span className="text-xs font-normal text-[var(--text-muted)]">g</span></p></div>
-              <div className="glass-card p-5 border-l-4 border-l-[var(--accent-yellow)]"><h3 className="text-xs text-[var(--text-tertiary)]">Fat</h3><p className="text-2xl font-bold mt-1">{todayMacros.fat} <span className="text-xs font-normal text-[var(--text-muted)]">g</span></p></div>
+            {/* Date Selector Banner */}
+            <motion.div variants={fi} className="flex flex-col sm:flex-row items-center justify-between bg-white/[0.01] border border-white/[0.04] p-3 rounded-2xl gap-3">
+              <button 
+                onClick={() => {
+                  const newDate = new Date(selectedDate);
+                  newDate.setDate(newDate.getDate() - 1);
+                  setSelectedDate(newDate);
+                }}
+                className="w-full sm:w-auto px-4 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)] hover:text-white hover:bg-[var(--bg-hover)] transition-all"
+              >
+                ← Previous Day
+              </button>
+              
+              <div className="flex items-center gap-3 font-medium">
+                <span className="text-sm font-bold text-white tracking-wide">
+                  {selectedDate.toDateString() === new Date().toDateString() 
+                    ? 'Today' 
+                    : selectedDate.toDateString() === new Date(Date.now() - 86400000).toDateString()
+                      ? 'Yesterday'
+                      : selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
+                <input 
+                  type="date" 
+                  value={selectedDate.toISOString().split('T')[0]} 
+                  onChange={(e) => {
+                    if (e.target.value) setSelectedDate(new Date(e.target.value));
+                  }}
+                  className="bg-[var(--bg-elevated)] border border-white/[0.08] rounded-xl px-2 py-1 text-xs text-white outline-none cursor-pointer hover:border-white/[0.15] transition-all font-mono"
+                />
+              </div>
+
+              <button 
+                onClick={() => {
+                  const newDate = new Date(selectedDate);
+                  newDate.setDate(newDate.getDate() + 1);
+                  setSelectedDate(newDate);
+                }}
+                disabled={selectedDate.toDateString() === new Date().toDateString()}
+                className="w-full sm:w-auto px-4 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)] hover:text-white hover:bg-[var(--bg-hover)] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                Next Day →
+              </button>
             </motion.div>
+
+            {/* Horizontal Timeline Jump Bar */}
+            <motion.div variants={fi} className="grid grid-cols-7 gap-2">
+              {Array.from({ length: 7 }, (_, idx) => {
+                const d = new Date();
+                d.setDate(d.getDate() - (6 - idx));
+                const isSelected = d.toDateString() === selectedDate.toDateString();
+                
+                // Calculate calories for this day
+                const dayDiet = diet.filter(item => new Date(item.date).toDateString() === d.toDateString());
+                const dayCals = dayDiet.reduce((sum, item) => sum + item.calories, 0);
+
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => setSelectedDate(d)}
+                    className={`flex flex-col items-center justify-between p-2.5 rounded-2xl border transition-all ${
+                      isSelected 
+                        ? 'bg-[rgba(249,115,22,0.15)] border-[var(--accent-orange)] text-white shadow-[0_0_12px_rgba(249,115,22,0.1)]' 
+                        : 'bg-white/[0.01] border-white/[0.04] text-[var(--text-secondary)] hover:bg-white/[0.04] hover:border-white/[0.08]'
+                    }`}
+                  >
+                    <span className="text-[9px] font-mono uppercase tracking-wider">
+                      {d.toLocaleDateString('en-US', { weekday: 'short' })}
+                    </span>
+                    <span className="text-sm font-bold my-1">{d.getDate()}</span>
+                    <span className="text-[9px] font-semibold text-[rgba(255,255,255,0.45)]">
+                      {dayCals > 0 ? `${dayCals} kcal` : '-'}
+                    </span>
+                  </button>
+                );
+              })}
+            </motion.div>
+
+            {/* Macros Summary for selected date */}
+            <motion.div variants={fi} className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="glass-card p-5 border-l-4 border-l-[var(--accent-orange)]"><h3 className="text-xs text-[var(--text-tertiary)]">Calories</h3><p className="text-2xl font-bold mt-1">{selectedMacros.calories} <span className="text-xs font-normal text-[var(--text-muted)]">kcal</span></p></div>
+              <div className="glass-card p-5 border-l-4 border-l-[var(--accent-cyan)]"><h3 className="text-xs text-[var(--text-tertiary)]">Protein</h3><p className="text-2xl font-bold mt-1">{selectedMacros.protein} <span className="text-xs font-normal text-[var(--text-muted)]">g</span></p></div>
+              <div className="glass-card p-5 border-l-4 border-l-[var(--accent-green)]"><h3 className="text-xs text-[var(--text-tertiary)]">Carbs</h3><p className="text-2xl font-bold mt-1">{selectedMacros.carbs} <span className="text-xs font-normal text-[var(--text-muted)]">g</span></p></div>
+              <div className="glass-card p-5 border-l-4 border-l-[var(--accent-yellow)]"><h3 className="text-xs text-[var(--text-tertiary)]">Fat</h3><p className="text-2xl font-bold mt-1">{selectedMacros.fat} <span className="text-xs font-normal text-[var(--text-muted)]">g</span></p></div>
+            </motion.div>
+
+            {/* Diet list */}
             <motion.div variants={fi} className="glass-card p-5">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold flex items-center gap-2"><Utensils className="w-4 h-4 text-[var(--accent-orange)]" /> Today's Diet Log</h3>
-                <button onClick={() => setShowAddDiet(true)} className="px-3 py-1.5 rounded-lg bg-[rgba(249,115,22,0.1)] text-[var(--accent-orange)] text-xs font-medium hover:bg-[rgba(249,115,22,0.2)] transition-colors flex items-center gap-1"><Plus className="w-3 h-3" /> Add Meal</button>
+                <h3 className="text-sm font-semibold flex items-center gap-2">
+                  <Utensils className="w-4 h-4 text-[var(--accent-orange)]" /> 
+                  Diet Log for {selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                </h3>
+                <button onClick={() => { setEditingDiet(null); setShowAddDiet(true); }} className="px-3 py-1.5 rounded-lg bg-[rgba(249,115,22,0.1)] text-[var(--accent-orange)] text-xs font-medium hover:bg-[rgba(249,115,22,0.2)] transition-colors flex items-center gap-1"><Plus className="w-3 h-3" /> Add Meal</button>
               </div>
               <div className="space-y-3">
-                {todayDiet.length === 0 ? <p className="text-xs text-[var(--text-muted)] text-center py-4">No meals logged today.</p> : todayDiet.map(d => (
-                  <div key={d.id} className="p-4 rounded-xl bg-[var(--bg-hover)] flex justify-between items-center group">
+                {selectedDiet.length === 0 ? (
+                  <div className="text-center py-6">
+                    <Utensils className="w-8 h-8 text-[var(--text-tertiary)] mx-auto mb-2 opacity-30" />
+                    <p className="text-xs text-[var(--text-muted)]">No meals logged for this day.</p>
+                  </div>
+                ) : selectedDiet.map(d => (
+                  <div key={d.id} className="p-4 rounded-xl bg-[var(--bg-hover)] border border-white/[0.01] hover:border-white/[0.04] flex justify-between items-center group transition-all">
                     <div>
-                      <p className="text-xs text-[var(--accent-orange)] font-semibold">{d.mealType}</p>
-                      <p className="text-sm font-medium mt-0.5">{d.food}</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-[var(--accent-orange)] font-bold uppercase font-mono tracking-wide">{d.mealType}</span>
+                        <span className="text-[10px] text-[var(--text-tertiary)] font-mono">• {new Date(d.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                      <p className="text-sm font-semibold text-white mt-1">{d.food}</p>
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="text-right">
                         <p className="text-sm font-bold text-[var(--text-primary)]">{d.calories} kcal</p>
-                        <p className="text-[10px] text-[var(--text-tertiary)]">P: {d.protein}g | C: {d.carbs}g | F: {d.fat}g</p>
+                        <p className="text-[10px] text-[var(--text-tertiary)] font-mono">P: {d.protein}g | C: {d.carbs}g | F: {d.fat}g</p>
                       </div>
-                      <button onClick={(e) => { e.stopPropagation(); setModal({ isOpen: true, type: 'confirm', title: 'Delete Meal', message: 'Are you sure you want to delete this meal log?', onConfirm: async () => { await db.diet.delete(d.id!); load(); setModal(null); } }); }} className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-500/10 text-[var(--text-muted)] hover:text-red-400 transition-all"><X className="w-4 h-4" /></button>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                        <button 
+                          onClick={() => { setEditingDiet(d); setShowAddDiet(true); }} 
+                          className="px-2 py-1 rounded bg-white/[0.05] border border-white/[0.05] text-[10px] font-bold text-[var(--text-secondary)] hover:text-[var(--accent-orange)] hover:bg-white/10 transition-all"
+                        >
+                          EDIT
+                        </button>
+                        <button 
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            setModal({ 
+                              isOpen: true, 
+                              type: 'confirm', 
+                              title: 'Delete Meal', 
+                              message: 'Are you sure you want to delete this meal log?', 
+                              onConfirm: async () => { 
+                                await db.diet.delete(d.id!); 
+                                load(); 
+                                setModal(null); 
+                              } 
+                            }); 
+                          }} 
+                          className="p-1.5 rounded-lg hover:bg-red-500/10 text-[var(--text-muted)] hover:text-red-400 transition-all"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -196,7 +320,21 @@ export default function FitnessPage() {
 
       {/* DIET MODAL */}
       {showAddDiet && (
-        <DietForm onClose={() => setShowAddDiet(false)} onSave={async (d) => { await db.diet.add(d); load(); setShowAddDiet(false); }} />
+        <DietForm 
+          selectedDate={selectedDate}
+          initialMeal={editingDiet}
+          onClose={() => { setShowAddDiet(false); setEditingDiet(null); }} 
+          onSave={async (d) => { 
+            if (editingDiet) {
+              await db.diet.update(editingDiet.id!, d);
+            } else {
+              await db.diet.add(d);
+            }
+            load(); 
+            setShowAddDiet(false); 
+            setEditingDiet(null);
+          }} 
+        />
       )}
       
       {/* GYM MODAL */}
@@ -210,42 +348,84 @@ export default function FitnessPage() {
   );
 }
 
-// --- DIET FORM WITH GEMINI API ---
-function DietForm({ onClose, onSave }: { onClose: () => void, onSave: (d: Omit<DietEntry, 'id'>) => void }) {
-  const [mealType, setMealType] = useState<DietEntry['mealType']>('Lunch');
-  const [food, setFood] = useState('');
+// --- DIET FORM WITH GEMINI API & MANUAL METRICS ENTRY ---
+function DietForm({ 
+  onClose, 
+  onSave, 
+  initialMeal, 
+  selectedDate 
+}: { 
+  onClose: () => void; 
+  onSave: (d: Omit<DietEntry, 'id'>) => void; 
+  initialMeal?: DietEntry | null; 
+  selectedDate: Date;
+}) {
+  const [mealType, setMealType] = useState<DietEntry['mealType']>(initialMeal?.mealType || 'Lunch');
+  const [food, setFood] = useState(initialMeal?.food || '');
+  const [calories, setCalories] = useState<string>(initialMeal?.calories?.toString() || '');
+  const [protein, setProtein] = useState<string>(initialMeal?.protein?.toString() || '');
+  const [carbs, setCarbs] = useState<string>(initialMeal?.carbs?.toString() || '');
+  const [fat, setFat] = useState<string>(initialMeal?.fat?.toString() || '');
+  
+  const [manualMode, setManualMode] = useState(initialMeal ? true : false);
   const [loading, setLoading] = useState(false);
 
   const handleSave = async () => {
     if (!food.trim()) return;
     setLoading(true);
-    let macros = { calories: 0, protein: 0, carbs: 0, fat: 0 };
-    let aiBreakdown = 'No AI data available.';
-    try {
-      const settings = await db.settings.toArray();
-      const key = settings[0]?.geminiApiKey;
-      if (key) {
-        const prompt = `Provide the estimated macronutrients for this food: "${food}". Return ONLY a strict JSON object with no markdown formatting: {"calories": number, "protein": number, "carbs": number, "fat": number}`;
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${key}`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }] })
-        });
-        const data = await res.json();
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-        const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
-        macros = JSON.parse(cleanJson);
-        aiBreakdown = `AI Estimated: ${macros.calories}kcal (P:${macros.protein} C:${macros.carbs} F:${macros.fat})`;
+    
+    let macros = { 
+      calories: manualMode ? (Number(calories) || 0) : 0, 
+      protein: manualMode ? (Number(protein) || 0) : 0, 
+      carbs: manualMode ? (Number(carbs) || 0) : 0, 
+      fat: manualMode ? (Number(fat) || 0) : 0 
+    };
+    let aiBreakdown = initialMeal?.aiBreakdown || 'Manual Entry.';
+
+    if (!manualMode) {
+      try {
+        const settings = await db.settings.toArray();
+        const key = settings[0]?.geminiApiKey;
+        if (key) {
+          const prompt = `Provide the estimated macronutrients for this food: "${food}". Return ONLY a strict JSON object with no markdown formatting: {"calories": number, "protein": number, "carbs": number, "fat": number}`;
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${key}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }] })
+          });
+          const data = await res.json();
+          const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+          const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
+          const parsed = JSON.parse(cleanJson);
+          macros = {
+            calories: parsed.calories || 0,
+            protein: parsed.protein || 0,
+            carbs: parsed.carbs || 0,
+            fat: parsed.fat || 0
+          };
+          aiBreakdown = `AI Estimated: ${macros.calories}kcal (P:${macros.protein} C:${macros.carbs} F:${macros.fat})`;
+        }
+      } catch (e) { 
+        console.error('AI Macro fail', e); 
       }
-    } catch (e) { console.error('AI Macro fail', e); }
+    }
+
+    // Keep original timestamp if editing, otherwise assign selectedDate with current hours/minutes
+    let finalDate = new Date(selectedDate);
+    if (initialMeal?.date) {
+      finalDate = new Date(initialMeal.date);
+    } else {
+      const now = new Date();
+      finalDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+    }
     
     onSave({
-      date: new Date(),
+      date: finalDate,
       mealType,
       food,
-      calories: macros.calories || 0,
-      protein: macros.protein || 0,
-      carbs: macros.carbs || 0,
-      fat: macros.fat || 0,
+      calories: macros.calories,
+      protein: macros.protein,
+      carbs: macros.carbs,
+      fat: macros.fat,
       aiBreakdown
     });
     setLoading(false);
@@ -254,19 +434,69 @@ function DietForm({ onClose, onSave }: { onClose: () => void, onSave: (d: Omit<D
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
       <div onClick={e => e.stopPropagation()} className="glass-card w-full max-w-md p-6 space-y-4">
-        <div className="flex justify-between items-center"><h2 className="text-lg font-bold">Log Meal</h2><button onClick={onClose}><X className="w-4 h-4 text-[var(--text-tertiary)]" /></button></div>
+        <div className="flex justify-between items-center">
+          <h2 className="text-lg font-bold">{initialMeal ? 'Edit Meal' : 'Log Meal'}</h2>
+          <button onClick={onClose}><X className="w-4 h-4 text-[var(--text-tertiary)]" /></button>
+        </div>
+        
+        {/* Manual Input Toggle */}
+        <div className="flex rounded-xl p-1 bg-[var(--bg-hover)] border border-[var(--border-subtle)]">
+          <button 
+            type="button"
+            onClick={() => setManualMode(false)}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${!manualMode ? 'bg-[var(--bg-elevated)] text-[var(--accent-orange)] shadow-sm' : 'text-[var(--text-tertiary)] hover:text-white'}`}
+          >
+            🤖 AI Estimates
+          </button>
+          <button 
+            type="button"
+            onClick={() => setManualMode(true)}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${manualMode ? 'bg-[var(--bg-elevated)] text-[var(--accent-orange)] shadow-sm' : 'text-[var(--text-tertiary)] hover:text-white'}`}
+          >
+            ✍️ Manual Entry
+          </button>
+        </div>
+
         <div>
-          <label className="text-xs font-medium text-[var(--text-secondary)] mb-1 block">Meal</label>
+          <label className="text-xs font-medium text-[var(--text-secondary)] mb-1 block">Meal Category</label>
           <select value={mealType} onChange={e => setMealType(e.target.value as any)} className="w-full px-3 py-2 rounded-xl bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-sm outline-none">
             {['Breakfast', 'Morning Snack', 'Lunch', 'Evening Snack', 'Dinner', 'Misc'].map(o => <option key={o}>{o}</option>)}
           </select>
         </div>
+        
         <div>
           <label className="text-xs font-medium text-[var(--text-secondary)] mb-1 block">What did you eat?</label>
           <textarea value={food} onChange={e => setFood(e.target.value)} rows={3} placeholder="e.g. 2 scrambled eggs, 1 slice whole wheat toast, black coffee" className="w-full px-3 py-2 rounded-xl bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-sm outline-none resize-none" />
         </div>
-        <button onClick={handleSave} disabled={loading} className="w-full py-3 rounded-xl bg-gradient-to-r from-[var(--accent-orange)] to-[var(--accent-pink)] text-white font-medium text-sm flex justify-center items-center gap-2 disabled:opacity-50">
-          {loading ? <span className="animate-pulse">Analyzing Macros with AI...</span> : 'Save Meal'}
+
+        {/* Manual Macros Fields */}
+        {manualMode && (
+          <div className="grid grid-cols-4 gap-2 pt-1 animate-fadeIn">
+            <div>
+              <label className="text-[10px] font-medium text-[var(--text-tertiary)] mb-1 block text-center">Calories</label>
+              <input type="number" placeholder="kcal" value={calories} onChange={e => setCalories(e.target.value)} className="w-full px-2 py-1.5 rounded-lg bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-xs text-white text-center outline-none" />
+            </div>
+            <div>
+              <label className="text-[10px] font-medium text-[var(--text-tertiary)] mb-1 block text-center">Protein (g)</label>
+              <input type="number" placeholder="g" value={protein} onChange={e => setProtein(e.target.value)} className="w-full px-2 py-1.5 rounded-lg bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-xs text-white text-center outline-none" />
+            </div>
+            <div>
+              <label className="text-[10px] font-medium text-[var(--text-tertiary)] mb-1 block text-center">Carbs (g)</label>
+              <input type="number" placeholder="g" value={carbs} onChange={e => setCarbs(e.target.value)} className="w-full px-2 py-1.5 rounded-lg bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-xs text-white text-center outline-none" />
+            </div>
+            <div>
+              <label className="text-[10px] font-medium text-[var(--text-tertiary)] mb-1 block text-center">Fat (g)</label>
+              <input type="number" placeholder="g" value={fat} onChange={e => setFat(e.target.value)} className="w-full px-2 py-1.5 rounded-lg bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-xs text-white text-center outline-none" />
+            </div>
+          </div>
+        )}
+
+        <button onClick={handleSave} disabled={loading} className="w-full py-3 rounded-xl bg-gradient-to-r from-[var(--accent-orange)] to-[var(--accent-pink)] text-white font-medium text-sm flex justify-center items-center gap-2 disabled:opacity-50 transition-all hover:brightness-110">
+          {loading ? (
+            <span className="animate-pulse">{manualMode ? 'Saving Meal...' : 'Analyzing Macros with AI...'}</span>
+          ) : (
+            <span>{initialMeal ? 'Update Meal' : 'Save Meal'}</span>
+          )}
         </button>
       </div>
     </div>

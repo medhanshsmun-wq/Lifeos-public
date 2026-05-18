@@ -69,6 +69,75 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const autoRegisterNewDay = async () => {
+      try {
+        const todayStr = new Date().toDateString();
+        
+        // 1. Auto-register habits for today
+        const habits = await db.habits.toArray();
+        const uniqueNames = Array.from(new Set(habits.map(h => h.habitName)));
+        for (const name of uniqueNames) {
+          const hasToday = habits.some(h => h.habitName === name && new Date(h.date).toDateString() === todayStr);
+          if (!hasToday) {
+            await db.habits.add({
+              habitName: name,
+              completed: false,
+              date: new Date(),
+              streak: 0
+            });
+          }
+        }
+
+        // 2. Auto-register fitness entry for today (with 0 steps initialized)
+        const fitness = await db.fitness.toArray();
+        const hasTodayFitness = fitness.some(f => new Date(f.date).toDateString() === todayStr);
+        if (!hasTodayFitness) {
+          await db.fitness.add({
+            steps: 0,
+            distance: 0,
+            caloriesBurned: 0,
+            activeMinutes: 0,
+            date: new Date(),
+            notes: 'Auto-registered for the day'
+          });
+        }
+
+        // 3. Auto-sync settings to server SQLite
+        const settingsList = await db.settings.toArray();
+        if (settingsList.length > 0) {
+          const sObj = settingsList[0];
+          try {
+            await serverDb.settings.put({
+              id: 1, // Target settings row #1 in SQLite
+              geminiApiKey: sObj.geminiApiKey || '',
+              githubToken: sObj.githubToken || '',
+              githubUsername: sObj.githubUsername || '',
+              cloudBackupEnabled: !!sObj.cloudBackupEnabled,
+              theme: sObj.theme || 'dark',
+              accentColor: sObj.accentColor || '#00F5FF',
+              dashboardWidgets: sObj.dashboardWidgets || [],
+              name: sObj.name || 'User',
+              avatar: sObj.avatar || '',
+              propFirmAccountsCount: sObj.propFirmAccountsCount || 1,
+              propFirmName: sObj.propFirmName || null,
+              propFirmSize: sObj.propFirmSize || null,
+              spotifyClientId: sObj.spotifyClientId || null,
+              spotifyClientSecret: sObj.spotifyClientSecret || null,
+              spotifyAccessToken: sObj.spotifyAccessToken || null,
+              spotifyRefreshToken: sObj.spotifyRefreshToken || null,
+              spotifyExpiresAt: sObj.spotifyExpiresAt ? Number(sObj.spotifyExpiresAt) : null,
+              summerBreakMode: !!sObj.summerBreakMode,
+              appleHealthEnabled: !!sObj.appleHealthEnabled,
+            });
+          } catch (err) {
+            console.warn('Settings sync to SQLite failed', err);
+          }
+        }
+      } catch (e) {
+        console.warn('Auto-registering new day failed', e);
+      }
+    };
+
     const syncHealth = async () => {
       try {
         const serverFitness = await serverDb.fitness.toArray();
@@ -98,9 +167,29 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       }
     };
 
+    let active = true;
     initializeDb()
-      .then(() => syncHealth())
-      .then(() => setTimeout(() => setLoading(false), 800));
+      .then(() => {
+        if (!active) return;
+        return autoRegisterNewDay();
+      })
+      .then(() => {
+        if (!active) return;
+        return syncHealth();
+      })
+      .then(() => {
+        if (!active) return;
+        setTimeout(() => setLoading(false), 800);
+      });
+
+    const intervalId = setInterval(() => {
+      if (active) autoRegisterNewDay();
+    }, 30000);
+
+    return () => {
+      active = false;
+      clearInterval(intervalId);
+    };
   }, []);
 
   return (

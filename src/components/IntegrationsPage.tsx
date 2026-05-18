@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Plug, GitBranch, Calendar, Music, BookOpen, Heart, Check, ExternalLink, Download } from 'lucide-react';
 import { db, type UserSettings } from '@/lib/db';
+import { serverDb } from '@/lib/serverDb';
 import { useSpotify } from '@/lib/SpotifyContext';
 
 const fi = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0 } };
@@ -81,6 +82,11 @@ function IntegrationsContent() {
       window.location.href = authUrl;
     } else if (name === 'Apple Health' && settings?.id) {
       await db.settings.update(settings.id, { appleHealthEnabled: true });
+      try {
+        await serverDb.settings.update(settings.id, { appleHealthEnabled: true });
+      } catch (err) {
+        console.warn('Failed to sync Apple Health enabled connection to SQLite', err);
+      }
       setSettings(prev => prev ? { ...prev, appleHealthEnabled: true } : prev);
     }
   };
@@ -95,6 +101,11 @@ function IntegrationsContent() {
       setSettings(prev => prev ? { ...prev, spotifyAccessToken: '', spotifyRefreshToken: '', spotifyExpiresAt: 0 } : prev);
     } else if (name === 'Apple Health' && settings?.id) {
       await db.settings.update(settings.id, { appleHealthEnabled: false });
+      try {
+        await serverDb.settings.update(settings.id, { appleHealthEnabled: false });
+      } catch (err) {
+        console.warn('Failed to sync Apple Health disabled connection to SQLite', err);
+      }
       setSettings(prev => prev ? { ...prev, appleHealthEnabled: false } : prev);
     }
   };

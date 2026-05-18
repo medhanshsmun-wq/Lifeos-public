@@ -2,7 +2,21 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { db } from '@/lib/db';
+import { db, FitnessEntry } from '@/lib/db';
+
+function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number; name: string }>; label?: string }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-[rgba(10,10,10,0.85)] backdrop-blur-md border border-white/[0.08] p-2.5 rounded-xl">
+      <p className="text-[10px] text-[rgba(255,255,255,0.4)] mb-0.5">{label}</p>
+      {payload.map((p, i) => (
+        <p key={i} className="text-xs font-semibold text-white">
+          {typeof p.value === 'number' ? p.value.toLocaleString() : p.value} {p.name === 'steps' ? 'steps' : ''}
+        </p>
+      ))}
+    </div>
+  );
+}
 import { BarChart3, TrendingUp, Brain, Zap, Target, Activity } from 'lucide-react';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
 
@@ -10,6 +24,7 @@ const fi = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0 } };
 
 export default function AnalyticsPage() {
   const [data, setData] = useState<{ weeklyProd: { week: string; score: number }[]; lifeBalance: { area: string; value: number; fullMark: number }[]; trends: { day: string; fitness: number; study: number; coding: number }[] }>({ weeklyProd: [], lifeBalance: [], trends: [] });
+  const [fitnessData, setFitnessData] = useState<FitnessEntry[]>([]);
 
   useEffect(() => {
     const load = async () => {
@@ -21,6 +36,7 @@ export default function AnalyticsPage() {
         db.projects.toArray(),
         db.trades.toArray(),
       ]);
+      setFitnessData(fitness);
 
       // Weekly productivity scores (mock removed, calculating basic weekly entry counts)
       const weeklyProd = Array.from({ length: 8 }, (_, i) => {
@@ -65,6 +81,18 @@ export default function AnalyticsPage() {
     load();
   }, []);
 
+  const { stepsChartData, avgSteps, peakSteps, totalSteps, totalCalories } = useMemo(() => {
+    const stepsChartData = fitnessData.slice(-14).map(f => ({
+      day: new Date(f.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      steps: f.steps,
+    }));
+    const avgSteps = fitnessData.length > 0 ? Math.round(fitnessData.reduce((s, f) => s + f.steps, 0) / fitnessData.length) : 0;
+    const peakSteps = fitnessData.length > 0 ? Math.max(...fitnessData.map(f => f.steps)) : 0;
+    const totalSteps = fitnessData.reduce((s, f) => s + f.steps, 0);
+    const totalCalories = fitnessData.reduce((s, f) => s + f.caloriesBurned, 0);
+    return { stepsChartData, avgSteps, peakSteps, totalSteps, totalCalories };
+  }, [fitnessData]);
+
   return (
     <div className="p-6 lg:p-8 min-h-full">
       <motion.div initial="hidden" animate="show" variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } }} className="max-w-[1400px] mx-auto space-y-6">
@@ -94,6 +122,66 @@ export default function AnalyticsPage() {
               <LineChart data={data.trends}><XAxis dataKey="day" axisLine={false} tickLine={false} /><YAxis axisLine={false} tickLine={false} width={40} /><Tooltip /><Line type="monotone" dataKey="fitness" stroke="var(--accent-green)" strokeWidth={2} dot={false} /><Line type="monotone" dataKey="study" stroke="var(--accent-yellow)" strokeWidth={2} dot={false} /><Line type="monotone" dataKey="coding" stroke="var(--accent-cyan)" strokeWidth={2} dot={false} /></LineChart>
             </ResponsiveContainer>
             <div className="flex items-center gap-6 mt-3 justify-center">{[{ l: 'Fitness', c: 'var(--accent-green)' }, { l: 'Study', c: 'var(--accent-yellow)' }, { l: 'Coding', c: 'var(--accent-cyan)' }].map(x => (<div key={x.l} className="flex items-center gap-2 text-xs text-[var(--text-tertiary)]"><div className="w-3 h-0.5 rounded-full" style={{ background: x.c }} />{x.l}</div>))}</div>
+          </motion.div>
+
+          <motion.div variants={fi} className="glass-card p-5 lg:col-span-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <Activity className="w-4 h-4 text-[#6ee7b7]" />
+                Step & Activity Intelligence (14 Days)
+              </h3>
+              <span className="text-[10px] font-medium text-[rgba(255,255,255,0.35)] tracking-[0.15em] uppercase font-mono">
+                Weekly & Monthly Analytics
+              </span>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Chart */}
+              <div className="md:col-span-2">
+                <ResponsiveContainer width="100%" height={200}>
+                  <AreaChart data={stepsChartData}>
+                    <defs>
+                      <linearGradient id="analyticsStepsGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#6ee7b7" stopOpacity={0.25} />
+                        <stop offset="100%" stopColor="#6ee7b7" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'var(--text-tertiary)' }} />
+                    <YAxis axisLine={false} tickLine={false} width={40} tick={{ fontSize: 10, fill: 'var(--text-tertiary)' }} />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Area type="monotone" dataKey="steps" stroke="#6ee7b7" strokeWidth={2} fill="url(#analyticsStepsGrad)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+              
+              {/* Stats Panel */}
+              <div className="flex flex-col justify-between gap-4 bg-white/[0.01] border border-white/[0.04] p-4 rounded-xl">
+                <div>
+                  <p className="text-[10px] font-mono text-[var(--text-tertiary)] uppercase tracking-wider mb-2">Metrics Summary</p>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between border-b border-white/[0.03] pb-1.5">
+                      <span className="text-xs text-[var(--text-secondary)]">14-Day Average</span>
+                      <strong className="text-sm font-semibold text-white">{avgSteps.toLocaleString()}</strong>
+                    </div>
+                    <div className="flex items-center justify-between border-b border-white/[0.03] pb-1.5">
+                      <span className="text-xs text-[var(--text-secondary)]">Personal Record</span>
+                      <strong className="text-sm font-semibold text-[#6ee7b7]">{peakSteps.toLocaleString()}</strong>
+                    </div>
+                    <div className="flex items-center justify-between border-b border-white/[0.03] pb-1.5">
+                      <span className="text-xs text-[var(--text-secondary)]">Total Steps Tracked</span>
+                      <strong className="text-sm font-semibold text-white">{totalSteps.toLocaleString()}</strong>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-[var(--text-secondary)]">Calories Burned</span>
+                      <strong className="text-sm font-semibold text-white">{totalCalories.toLocaleString()} kcal</strong>
+                    </div>
+                  </div>
+                </div>
+                <div className="text-[9px] font-mono text-[var(--text-tertiary)] leading-normal mt-2">
+                  * Step data aggregates your synced Apple Health logs dynamically to preserve historical analytics.
+                </div>
+              </div>
+            </div>
           </motion.div>
         </div>
 

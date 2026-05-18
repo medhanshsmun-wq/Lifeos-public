@@ -1,32 +1,428 @@
 
 > lifeos@0.1.0 dev
-> next dev
+> next dev --hostname 0.0.0.0
 
 ▲ Next.js 16.2.6 (Turbopack)
 - Local:         http://localhost:3000
-- Network:       http://192.168.0.102:3000
+- Network:       http://0.0.0.0:3000
 - Environments: .env
-✓ Ready in 223ms
+✓ Ready in 252ms
 
 ⚠ Unsupported metadata themeColor is configured in metadata export in /. Please move it to viewport export instead.
 Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
 ⚠ Unsupported metadata viewport is configured in metadata export in /. Please move it to viewport export instead.
 Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
- GET / 200 in 266ms (next.js: 110ms, application-code: 157ms)
-⚠ Blocked cross-origin request to Next.js dev resource /_next/webpack-hmr from "127.0.0.1".
-Cross-origin access to Next.js dev resources is blocked by default for safety.
+ GET / 200 in 1971ms (next.js: 1754ms, application-code: 217ms)
+ GET /api/db/fitnessEntry 200 in 878ms (next.js: 852ms, application-code: 25ms)
+ POST /api/health-sync 401 in 25ms (next.js: 21ms, application-code: 5ms)
+ POST /api/health-sync 403 in 12ms (next.js: 3ms, application-code: 9ms)
+⚠ Unsupported metadata themeColor is configured in metadata export in /. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+⚠ Unsupported metadata viewport is configured in metadata export in /. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET / 200 in 34ms (next.js: 6ms, application-code: 28ms)
+ GET /api/db/fitnessEntry 200 in 16ms (next.js: 11ms, application-code: 5ms)
+ POST /api/health-sync 403 in 7ms (next.js: 1704µs, application-code: 5ms)
+⚠ Unsupported metadata themeColor is configured in metadata export in /settings. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+⚠ Unsupported metadata viewport is configured in metadata export in /settings. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET /settings 200 in 55ms (next.js: 32ms, application-code: 22ms)
+ GET /api/db/fitnessEntry 200 in 17ms (next.js: 8ms, application-code: 9ms)
+API POST Error: Error [PrismaClientValidationError]: 
+Invalid `dbModel.create()` invocation in
+/Users/medhansh/dsa/lifeos/.next/dev/server/chunks/[root-of-the-server]__05x-79d._.js:227:36
 
-To allow this host in development, add it to "allowedDevOrigins" in next.config.js and restart the dev server:
+  224     acc[field] = true;
+  225     return acc;
+  226 }, {});
+→ 227 const data = await dbModel.create({
+        data: {
+          geminiApiKey: "AIzaSyC1Mbq1jpA4T7n_tV1jkUby-lTB0E8IK6M",
+          githubToken: "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",
+          githubUsername: "medhanshsmun-wq",
+          cloudBackupEnabled: false,
+          theme: "arctic",
+          accentColor: "#00F5FF",
+          dashboardWidgets: "[\"productivity\",\"todos\",\"spotify\",\"active-projects\",\"integrations\",\"activity-overview\",\"trading-equity\",\"habits\"]",
+          name: "Medhansh",
+          avatar: "",
+          propFirmAccountsCount: 1,
+          spotifyClientId: "3d5a6880ae9540078a84987eb799a327",
+          spotifyClientSecret: "e1a1a3d6e65443489d794ec86aa9f7ab",
+          spotifyAccessToken: "BQDLzh_JaWv8muv7MMY47BApFmks0en54oHa3r0Vk9EeJNNSxmLFCjQN48MfVaO4BpeupBaKk7A2ShANsjgksM-EpxQp-bew0Kq2VXRf6qqLzjcTbCUwJ3B4lOw1EvZDxamC_H_CFT152phWA9ay_7WohtEhEBzaenqxbrW4dRKR031L0oaxw-RYCIAfJW33_jSW5fMWWgRBZhYdEjKGsrkpK598YzEJb_Ueie6vaq_iAtD9brUjujw20l4J5imFvfR4X0iCQegJ1uB_M9QpbWUpOGwTMvc",
+          spotifyRefreshToken: "AQBCARTMAYvH4jNUBDXmx1oHgkpVEz5YHZJKskkvABZTrdJmdS5BMNu9U3D9RUH6EK3_NWw_iAlGqAvz8TxkCcqx9e3cdNLF9IBfyeaP61TBi9yWQTlZ32qmfBaRsgo23rU",
+          spotifyExpiresAt: 1779069990328,
+          summerBreakMode: true,
+          widgetSizes: {
+          ~~~~~~~~~~~
+            activity-overview: "small",
+            trading-equity: "small",
+            active-projects: "small",
+            spotify: "small",
+            todos: "small",
+            productivity: "small",
+            recent-activity: "small",
+            integrations: "small",
+            habits: "large"
+          },
+          propFirmName: "Lucis",
+          propFirmSize: 25000,
+          appleHealthEnabled: true
+        }
+      })
 
-// next.config.js
-module.exports = {
-  allowedDevOrigins: ['127.0.0.1'],
+Unknown argument `widgetSizes`. Available options are marked with ?.
+    at <unknown> (src/app/api/db/[model]/route.ts:132:32)
+    at async POST (src/app/api/db/[model]/route.ts:132:18)
+  130 |     }, {});
+  131 |
+> 132 |     const data = await dbModel.create({ 
+      |                                ^
+  133 |       data: processedBody,
+  134 |       ...(include ? { include } : {})
+  135 |     }); {
+  clientVersion: '6.2.1'
 }
+ POST /api/db/userSettings 500 in 131ms (next.js: 5ms, application-code: 127ms)
+ POST /api/db/project 200 in 9ms (next.js: 2ms, application-code: 7ms)
+ POST /api/db/project 200 in 7ms (next.js: 1861µs, application-code: 5ms)
+[browser] Failed to migrate settings item: Error: 
+Invalid `dbModel.create()` invocation in
+/Users/medhansh/dsa/lifeos/.next/dev/server/chunks/[root-of-the-server]__05x-79d._.js:227:36
 
-Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+  224     acc[field] = true;
+  225     return acc;
+  226 }, {});
+→ 227 const data = await dbModel.create({
+        data: {
+          geminiApiKey: "AIzaSyC1Mbq1jpA4T7n_tV1jkUby-lTB0E8IK6M",
+          githubToken: "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",
+          githubUsername: "medhanshsmun-wq",
+          cloudBackupEnabled: false,
+          theme: "arctic",
+          accentColor: "#00F5FF",
+          dashboardWidgets: "[\"productivity\",\"todos\",\"spotify\",\"active-projects\",\"integrations\",\"activity-overview\",\"trading-equity\",\"habits\"]",
+          name: "Medhansh",
+          avatar: "",
+          propFirmAccountsCount: 1,
+          spotifyClientId: "3d5a6880ae9540078a84987eb799a327",
+          spotifyClientSecret: "e1a1a3d6e65443489d794ec86aa9f7ab",
+          spotifyAccessToken: "BQDLzh_JaWv8muv7MMY47BApFmks0en54oHa3r0Vk9EeJNNSxmLFCjQN48MfVaO4BpeupBaKk7A2ShANsjgksM-EpxQp-bew0Kq2VXRf6qqLzjcTbCUwJ3B4lOw1EvZDxamC_H_CFT152phWA9ay_7WohtEhEBzaenqxbrW4dRKR031L0oaxw-RYCIAfJW33_jSW5fMWWgRBZhYdEjKGsrkpK598YzEJb_Ueie6vaq_iAtD9brUjujw20l4J5imFvfR4X0iCQegJ1uB_M9QpbWUpOGwTMvc",
+          spotifyRefreshToken: "AQBCARTMAYvH4jNUBDXmx1oHgkpVEz5YHZJKskkvABZTrdJmdS5BMNu9U3D9RUH6EK3_NWw_iAlGqAvz8TxkCcqx9e3cdNLF9IBfyeaP61TBi9yWQTlZ32qmfBaRsgo23rU",
+          spotifyExpiresAt: 1779069990328,
+          summerBreakMode: true,
+          widgetSizes: {
+          ~~~~~~~~~~~
+            activity-overview: "small",
+            trading-equity: "small",
+            active-projects: "small",
+            spotify: "small",
+            todos: "small",
+            productivity: "small",
+            recent-activity: "small",
+            integrations: "small",
+            habits: "large"
+          },
+          propFirmName: "Lucis",
+          propFirmSize: 25000,
+          appleHealthEnabled: true
+        }
+      })
+
+Unknown argument `widgetSizes`. Available options are marked with ?.
+    at <unknown> (src/app/api/db/[model]/route.ts:132:32)
+    at apiRequest (src/lib/serverDb.ts:18:11)
+    at async onConfirm (src/components/SettingsPage.tsx:79:19)
+  130 |     }, {});
+  131 |
+> 132 |     const data = await dbModel.create({ 
+      |                                ^
+  133 |       data: processedBody,
+  134 |       ...(include ? { include } : {})
+  135 |     }); (src/components/SettingsPage.tsx:82:27)
+ POST /api/db/fitnessEntry 200 in 5ms (next.js: 1019µs, application-code: 4ms)
+ POST /api/db/fitnessEntry 200 in 4ms (next.js: 928µs, application-code: 3ms)
+ POST /api/db/dietEntry 200 in 6ms (next.js: 1063µs, application-code: 4ms)
+ POST /api/db/hobbyEntry 200 in 4ms (next.js: 1047µs, application-code: 3ms)
+ POST /api/db/subject 200 in 5ms (next.js: 1251µs, application-code: 4ms)
+ POST /api/db/subject 200 in 4ms (next.js: 951µs, application-code: 3ms)
+ POST /api/db/studyAssignment 200 in 5ms (next.js: 909µs, application-code: 4ms)
+ POST /api/db/studyAssignment 200 in 4ms (next.js: 727µs, application-code: 3ms)
+ POST /api/db/studyAssignment 200 in 3ms (next.js: 963µs, application-code: 2ms)
+ POST /api/db/habitEntry 200 in 5ms (next.js: 1151µs, application-code: 4ms)
+ POST /api/db/habitEntry 200 in 4ms (next.js: 1155µs, application-code: 3ms)
+ POST /api/db/habitEntry 200 in 3ms (next.js: 759µs, application-code: 3ms)
+ POST /api/db/habitEntry 200 in 2ms (next.js: 594µs, application-code: 1834µs)
+ POST /api/db/habitEntry 200 in 3ms (next.js: 720µs, application-code: 3ms)
+ POST /api/db/habitEntry 200 in 3ms (next.js: 826µs, application-code: 2ms)
+ POST /api/db/habitEntry 200 in 2ms (next.js: 659µs, application-code: 1776µs)
+ POST /api/db/habitEntry 200 in 3ms (next.js: 659µs, application-code: 3ms)
+ POST /api/db/habitEntry 200 in 3ms (next.js: 859µs, application-code: 1903µs)
+ POST /api/db/habitEntry 200 in 3ms (next.js: 746µs, application-code: 3ms)
+ POST /api/db/habitEntry 200 in 3ms (next.js: 650µs, application-code: 2ms)
+ POST /api/db/habitEntry 200 in 3ms (next.js: 710µs, application-code: 2ms)
+ POST /api/db/habitEntry 200 in 4ms (next.js: 1188µs, application-code: 2ms)
+ POST /api/db/habitEntry 200 in 3ms (next.js: 671µs, application-code: 2ms)
+ POST /api/db/aIConversation 200 in 15ms (next.js: 951µs, application-code: 14ms)
+ POST /api/db/aIConversation 200 in 4ms (next.js: 1282µs, application-code: 3ms)
+ POST /api/db/aIConversation 200 in 5ms (next.js: 1516µs, application-code: 4ms)
+⚠ Unsupported metadata themeColor is configured in metadata export in /integrations. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+⚠ Unsupported metadata viewport is configured in metadata export in /integrations. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET /integrations 200 in 34ms (next.js: 25ms, application-code: 9ms)
+ GET /api/db/fitnessEntry 200 in 9ms (next.js: 6ms, application-code: 2ms)
+⚠ Unsupported metadata themeColor is configured in metadata export in /settings. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+⚠ Unsupported metadata viewport is configured in metadata export in /settings. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET /settings 200 in 25ms (next.js: 4ms, application-code: 21ms)
+ GET /api/db/fitnessEntry 200 in 13ms (next.js: 10ms, application-code: 3ms)
+ POST /api/health-sync 403 in 10ms (next.js: 4ms, application-code: 6ms)
 ⚠ Unsupported metadata themeColor is configured in metadata export in /. Please move it to viewport export instead.
 Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
 ⚠ Unsupported metadata viewport is configured in metadata export in /. Please move it to viewport export instead.
 Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
- GET / 200 in 36ms (next.js: 4ms, application-code: 32ms)
-[?25h
+ GET / 200 in 29ms (next.js: 4ms, application-code: 24ms)
+ GET /api/db/fitnessEntry 200 in 9ms (next.js: 6ms, application-code: 3ms)
+API PUT Error: TypeError: Do not know how to serialize a BigInt
+    at JSON.stringify (<anonymous>)
+    at PUT (src/app/api/db/[model]/route.ts:194:25)
+  192 |       ...(include ? { include } : {})
+  193 |     });
+> 194 |     return NextResponse.json(updated);
+      |                         ^
+  195 |   } catch (error: any) {
+  196 |     console.error('API PUT Error:', error);
+  197 |     return NextResponse.json({ error: error.message }, { status: 500 });
+ PUT /api/db/userSettings 500 in 87ms (next.js: 3ms, application-code: 84ms)
+✓ Compiled in 311ms
+ GET /api/db/fitnessEntry 200 in 4ms (next.js: 1692µs, application-code: 3ms)
+[browser] Settings sync to SQLite failed Error: Do not know how to serialize a BigInt
+    at apiRequest (src/lib/serverDb.ts:18:11)
+    at async AppShell.useEffect.autoRegisterNewDay (src/components/AppShell.tsx:110:13)
+  16 |   if (!res.ok) {
+  17 |     const err = await res.json();
+> 18 |     throw new Error(err.error || `API Request failed: ${res.status}`);
+     |           ^
+  19 |   }
+  20 |   return res.json();
+  21 | } (src/components/AppShell.tsx:133:21)
+✓ Compiled in 242ms
+API PUT Error: TypeError: Do not know how to serialize a BigInt
+    at JSON.stringify (<anonymous>)
+    at PUT (src/app/api/db/[model]/route.ts:194:25)
+  192 |       ...(include ? { include } : {})
+  193 |     });
+> 194 |     return NextResponse.json(updated);
+      |                         ^
+  195 |   } catch (error: any) {
+  196 |     console.error('API PUT Error:', error);
+  197 |     return NextResponse.json({ error: error.message }, { status: 500 });
+ PUT /api/db/userSettings 500 in 67ms (next.js: 5ms, application-code: 62ms)
+[browser] Settings sync to SQLite failed Error: Do not know how to serialize a BigInt
+    at apiRequest (src/lib/serverDb.ts:18:11)
+    at async AppShell.useEffect.autoRegisterNewDay (src/components/AppShell.tsx:110:13)
+  16 |   if (!res.ok) {
+  17 |     const err = await res.json();
+> 18 |     throw new Error(err.error || `API Request failed: ${res.status}`);
+     |           ^
+  19 |   }
+  20 |   return res.json();
+  21 | } (src/components/AppShell.tsx:133:21)
+⚠ Unsupported metadata themeColor is configured in metadata export in /. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+⚠ Unsupported metadata viewport is configured in metadata export in /. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET / 200 in 45ms (next.js: 5ms, application-code: 40ms)
+API PUT Error: TypeError: Do not know how to serialize a BigInt
+    at JSON.stringify (<anonymous>)
+    at PUT (src/app/api/db/[model]/route.ts:194:25)
+  192 |       ...(include ? { include } : {})
+  193 |     });
+> 194 |     return NextResponse.json(updated);
+      |                         ^
+  195 |   } catch (error: any) {
+  196 |     console.error('API PUT Error:', error);
+  197 |     return NextResponse.json({ error: error.message }, { status: 500 });
+ PUT /api/db/userSettings 500 in 68ms (next.js: 6ms, application-code: 62ms)
+ GET /api/db/fitnessEntry 200 in 6ms (next.js: 2ms, application-code: 4ms)
+[browser] Settings sync to SQLite failed Error: Do not know how to serialize a BigInt
+    at apiRequest (src/lib/serverDb.ts:18:11)
+    at async AppShell.useEffect.autoRegisterNewDay (src/components/AppShell.tsx:110:13)
+  16 |   if (!res.ok) {
+  17 |     const err = await res.json();
+> 18 |     throw new Error(err.error || `API Request failed: ${res.status}`);
+     |           ^
+  19 |   }
+  20 |   return res.json();
+  21 | } (src/components/AppShell.tsx:133:21)
+ POST /api/health-sync 200 in 15ms (next.js: 4ms, application-code: 11ms)
+⚠ Unsupported metadata themeColor is configured in metadata export in /. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+⚠ Unsupported metadata viewport is configured in metadata export in /. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET / 200 in 29ms (next.js: 3ms, application-code: 25ms)
+API PUT Error: TypeError: Do not know how to serialize a BigInt
+    at JSON.stringify (<anonymous>)
+    at PUT (src/app/api/db/[model]/route.ts:194:25)
+  192 |       ...(include ? { include } : {})
+  193 |     });
+> 194 |     return NextResponse.json(updated);
+      |                         ^
+  195 |   } catch (error: any) {
+  196 |     console.error('API PUT Error:', error);
+  197 |     return NextResponse.json({ error: error.message }, { status: 500 });
+ PUT /api/db/userSettings 500 in 55ms (next.js: 4ms, application-code: 51ms)
+[browser] Settings sync to SQLite failed Error: Do not know how to serialize a BigInt
+    at apiRequest (src/lib/serverDb.ts:18:11)
+    at async AppShell.useEffect.autoRegisterNewDay (src/components/AppShell.tsx:110:13)
+  16 |   if (!res.ok) {
+  17 |     const err = await res.json();
+> 18 |     throw new Error(err.error || `API Request failed: ${res.status}`);
+     |           ^
+  19 |   }
+  20 |   return res.json();
+  21 | } (src/components/AppShell.tsx:133:21)
+ GET /api/db/fitnessEntry 200 in 4ms (next.js: 1230µs, application-code: 3ms)
+⚠ Unsupported metadata themeColor is configured in metadata export in /fitness. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+⚠ Unsupported metadata viewport is configured in metadata export in /fitness. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET /fitness 200 in 57ms (next.js: 34ms, application-code: 22ms)
+API PUT Error: TypeError: Do not know how to serialize a BigInt
+    at JSON.stringify (<anonymous>)
+    at PUT (src/app/api/db/[model]/route.ts:194:25)
+  192 |       ...(include ? { include } : {})
+  193 |     });
+> 194 |     return NextResponse.json(updated);
+      |                         ^
+  195 |   } catch (error: any) {
+  196 |     console.error('API PUT Error:', error);
+  197 |     return NextResponse.json({ error: error.message }, { status: 500 });
+ PUT /api/db/userSettings 500 in 83ms (next.js: 7ms, application-code: 75ms)
+[browser] Settings sync to SQLite failed Error: Do not know how to serialize a BigInt
+    at apiRequest (src/lib/serverDb.ts:18:11)
+    at async AppShell.useEffect.autoRegisterNewDay (src/components/AppShell.tsx:110:13)
+  16 |   if (!res.ok) {
+  17 |     const err = await res.json();
+> 18 |     throw new Error(err.error || `API Request failed: ${res.status}`);
+     |           ^
+  19 |   }
+  20 |   return res.json();
+  21 | } (src/components/AppShell.tsx:133:21)
+ GET /api/db/fitnessEntry 200 in 7ms (next.js: 3ms, application-code: 5ms)
+API PUT Error: TypeError: Do not know how to serialize a BigInt
+    at JSON.stringify (<anonymous>)
+    at PUT (src/app/api/db/[model]/route.ts:194:25)
+  192 |       ...(include ? { include } : {})
+  193 |     });
+> 194 |     return NextResponse.json(updated);
+      |                         ^
+  195 |   } catch (error: any) {
+  196 |     console.error('API PUT Error:', error);
+  197 |     return NextResponse.json({ error: error.message }, { status: 500 });
+ PUT /api/db/userSettings 500 in 63ms (next.js: 6ms, application-code: 57ms)
+[browser] Settings sync to SQLite failed Error: Do not know how to serialize a BigInt
+    at apiRequest (src/lib/serverDb.ts:18:11)
+    at async AppShell.useEffect.autoRegisterNewDay (src/components/AppShell.tsx:110:13)
+  16 |   if (!res.ok) {
+  17 |     const err = await res.json();
+> 18 |     throw new Error(err.error || `API Request failed: ${res.status}`);
+     |           ^
+  19 |   }
+  20 |   return res.json();
+  21 | } (src/components/AppShell.tsx:133:21)
+API PUT Error: TypeError: Do not know how to serialize a BigInt
+    at JSON.stringify (<anonymous>)
+    at PUT (src/app/api/db/[model]/route.ts:194:25)
+  192 |       ...(include ? { include } : {})
+  193 |     });
+> 194 |     return NextResponse.json(updated);
+      |                         ^
+  195 |   } catch (error: any) {
+  196 |     console.error('API PUT Error:', error);
+  197 |     return NextResponse.json({ error: error.message }, { status: 500 });
+ PUT /api/db/userSettings 500 in 113ms (next.js: 27ms, application-code: 86ms)
+[browser] Settings sync to SQLite failed Error: Do not know how to serialize a BigInt
+    at apiRequest (src/lib/serverDb.ts:18:11)
+    at async AppShell.useEffect.autoRegisterNewDay (src/components/AppShell.tsx:110:13)
+  16 |   if (!res.ok) {
+  17 |     const err = await res.json();
+> 18 |     throw new Error(err.error || `API Request failed: ${res.status}`);
+     |           ^
+  19 |   }
+  20 |   return res.json();
+  21 | } (src/components/AppShell.tsx:133:21)
+API PUT Error: TypeError: Do not know how to serialize a BigInt
+    at JSON.stringify (<anonymous>)
+    at PUT (src/app/api/db/[model]/route.ts:194:25)
+  192 |       ...(include ? { include } : {})
+  193 |     });
+> 194 |     return NextResponse.json(updated);
+      |                         ^
+  195 |   } catch (error: any) {
+  196 |     console.error('API PUT Error:', error);
+  197 |     return NextResponse.json({ error: error.message }, { status: 500 });
+ PUT /api/db/userSettings 500 in 74ms (next.js: 11ms, application-code: 63ms)
+[browser] Settings sync to SQLite failed Error: Do not know how to serialize a BigInt
+    at apiRequest (src/lib/serverDb.ts:18:11)
+    at async AppShell.useEffect.autoRegisterNewDay (src/components/AppShell.tsx:110:13)
+  16 |   if (!res.ok) {
+  17 |     const err = await res.json();
+> 18 |     throw new Error(err.error || `API Request failed: ${res.status}`);
+     |           ^
+  19 |   }
+  20 |   return res.json();
+  21 | } (src/components/AppShell.tsx:133:21)
+⚠ Unsupported metadata themeColor is configured in metadata export in /. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+⚠ Unsupported metadata viewport is configured in metadata export in /. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET / 200 in 25ms (next.js: 6ms, application-code: 19ms)
+API PUT Error: TypeError: Do not know how to serialize a BigInt
+    at JSON.stringify (<anonymous>)
+    at PUT (src/app/api/db/[model]/route.ts:194:25)
+  192 |       ...(include ? { include } : {})
+  193 |     });
+> 194 |     return NextResponse.json(updated);
+      |                         ^
+  195 |   } catch (error: any) {
+  196 |     console.error('API PUT Error:', error);
+  197 |     return NextResponse.json({ error: error.message }, { status: 500 });
+ PUT /api/db/userSettings 500 in 70ms (next.js: 5ms, application-code: 65ms)
+[browser] Settings sync to SQLite failed Error: Do not know how to serialize a BigInt
+    at apiRequest (src/lib/serverDb.ts:18:11)
+    at async AppShell.useEffect.autoRegisterNewDay (src/components/AppShell.tsx:110:13)
+  16 |   if (!res.ok) {
+  17 |     const err = await res.json();
+> 18 |     throw new Error(err.error || `API Request failed: ${res.status}`);
+     |           ^
+  19 |   }
+  20 |   return res.json();
+  21 | } (src/components/AppShell.tsx:133:21)
+ GET /api/db/fitnessEntry 200 in 11ms (next.js: 5ms, application-code: 6ms)
+✓ Compiled in 270ms
+✓ Compiled in 174ms
+API PUT Error: TypeError: Do not know how to serialize a BigInt
+    at JSON.stringify (<anonymous>)
+    at PUT (src/app/api/db/[model]/route.ts:194:25)
+  192 |       ...(include ? { include } : {})
+  193 |     });
+> 194 |     return NextResponse.json(updated);
+      |                         ^
+  195 |   } catch (error: any) {
+  196 |     console.error('API PUT Error:', error);
+  197 |     return NextResponse.json({ error: error.message }, { status: 500 });
+ PUT /api/db/userSettings 500 in 68ms (next.js: 6ms, application-code: 62ms)
+[browser] Settings sync to SQLite failed Error: Do not know how to serialize a BigInt
+    at apiRequest (src/lib/serverDb.ts:18:11)
+    at async AppShell.useEffect.autoRegisterNewDay (src/components/AppShell.tsx:110:13)
+  16 |   if (!res.ok) {
+  17 |     const err = await res.json();
+> 18 |     throw new Error(err.error || `API Request failed: ${res.status}`);
+     |           ^
+  19 |   }
+  20 |   return res.json();
+  21 | } (src/components/AppShell.tsx:133:21)
