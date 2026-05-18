@@ -203,7 +203,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           { name: 'trades', server: serverDb.trades }
         ];
 
-        for (const table of tables) {
+        await Promise.all(tables.map(async (table) => {
           try {
             const serverItems = await table.server.toArray();
             // @ts-ignore
@@ -317,7 +317,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           } catch (tableErr) {
             console.warn(`Sync failed for table ${table.name}:`, tableErr);
           }
-        }
+        }));
       } catch (e) {
         console.error('Error during full bidirectional sync:', e);
       }
@@ -327,15 +327,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     initializeDb()
       .then(() => {
         if (!active) return;
-        return autoRegisterNewDay();
-      })
-      .then(() => {
-        if (!active) return;
-        return syncAllFromCloud();
-      })
-      .then(() => {
-        if (!active) return;
-        setTimeout(() => setLoading(false), 800);
+        // Run autoRegister and cloudSync asynchronously in the background
+        autoRegisterNewDay();
+        syncAllFromCloud();
+        
+        // Load the page UI instantly without waiting for sync network rounds
+        setTimeout(() => setLoading(false), 300);
       });
 
     const intervalId = setInterval(() => {
