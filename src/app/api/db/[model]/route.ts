@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
+function jsonResponse(data: any, status = 200) {
+  return new NextResponse(
+    JSON.stringify(data, (_, value) => (typeof value === 'bigint' ? Number(value) : value)),
+    {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    }
+  );
+}
+
 // Fields that are relations in Prisma (need special handling during create/update)
 const RELATION_FIELDS: Record<string, string[]> = {
   project: ['milestones'],
@@ -100,11 +110,11 @@ export async function GET(
 
     if (id) {
       const data = await dbModel.findUnique({ where: { id: parseInt(id) }, ...(include ? { include } : {}) });
-      return NextResponse.json(data);
+      return jsonResponse(data);
     }
 
     const data = await dbModel.findMany(include ? { include } : {});
-    return NextResponse.json(data);
+    return jsonResponse(data);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -133,7 +143,7 @@ export async function POST(
       data: processedBody,
       ...(include ? { include } : {})
     });
-    return NextResponse.json(data);
+    return jsonResponse(data);
   } catch (error: any) {
     console.error('API POST Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -191,7 +201,7 @@ export async function PUT(
       data,
       ...(include ? { include } : {})
     });
-    return NextResponse.json(updated);
+    return jsonResponse(updated);
   } catch (error: any) {
     console.error('API PUT Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });

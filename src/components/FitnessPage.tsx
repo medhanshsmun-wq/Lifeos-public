@@ -68,16 +68,16 @@ export default function FitnessPage() {
   return (
     <div className="p-6 lg:p-8 min-h-full">
       <motion.div variants={anim} initial="hidden" animate="show" className="max-w-[1400px] mx-auto space-y-6">
-        <motion.div variants={fi} className="flex items-center justify-between">
+        <motion.div variants={fi} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-[rgba(34,197,94,0.1)]"><Activity className="w-5 h-5 text-[var(--accent-green)]" /></div>
             <div><h1 className="text-2xl font-bold">Health & Fitness</h1><p className="text-xs text-[var(--text-tertiary)] font-mono">Activity, Diet, and Gym tracking</p></div>
           </div>
-          <div className="flex gap-2 p-1 bg-[var(--bg-hover)] rounded-xl border border-[var(--border-subtle)]">
+          <div className="flex gap-2 p-1 bg-[var(--bg-hover)] rounded-xl border border-[var(--border-subtle)] w-full sm:w-auto overflow-x-auto">
             {(['activity', 'diet', 'gym'] as const).map(t => (
               <button 
                 key={t} onClick={() => setTab(t)} 
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === t ? 'bg-[var(--bg-elevated)] text-[var(--accent-green)] shadow-md' : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'}`}
+                className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-medium transition-all text-center whitespace-nowrap ${tab === t ? 'bg-[var(--bg-elevated)] text-[var(--accent-green)] shadow-md' : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'}`}
               >
                 {t.charAt(0).toUpperCase() + t.slice(1)}
               </button>
@@ -302,7 +302,7 @@ export default function FitnessPage() {
                         body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: `Analyze my recent gym logs and give a short 3-sentence suggestion for progressive overload for next week: ${JSON.stringify(gym.slice(-7))}` }] }] })
                       });
                       const data = await res.json();
-                      setGymSuggestion(data.candidates?.[0]?.content?.parts?.[0]?.text || 'No suggestion.');
+                      setGymSuggestion(data.candidates?.[0]?.content?.parts?.[0]?.text || data?.error?.message || 'No suggestion.');
                     } catch { setGymSuggestion('Failed to fetch AI insights.'); }
                   }}
                   className="px-3 py-1 text-[10px] rounded hover:bg-[var(--bg-hover)] text-[var(--accent-purple)] border border-[rgba(168,85,247,0.2)]"
@@ -393,16 +393,20 @@ function DietForm({
             body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }] })
           });
           const data = await res.json();
-          const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-          const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
-          const parsed = JSON.parse(cleanJson);
-          macros = {
-            calories: parsed.calories || 0,
-            protein: parsed.protein || 0,
-            carbs: parsed.carbs || 0,
-            fat: parsed.fat || 0
-          };
-          aiBreakdown = `AI Estimated: ${macros.calories}kcal (P:${macros.protein} C:${macros.carbs} F:${macros.fat})`;
+          if (data?.error?.message) {
+            console.error("AI estimation error", data.error.message);
+          } else {
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+            const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
+            const parsed = JSON.parse(cleanJson);
+            macros = {
+              calories: parsed.calories || 0,
+              protein: parsed.protein || 0,
+              carbs: parsed.carbs || 0,
+              fat: parsed.fat || 0
+            };
+            aiBreakdown = `AI Estimated: ${macros.calories}kcal (P:${macros.protein} C:${macros.carbs} F:${macros.fat})`;
+          }
         }
       } catch (e) { 
         console.error('AI Macro fail', e); 
