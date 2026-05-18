@@ -171,7 +171,47 @@ export default function CopilotPage() {
   };
 
   const linkProject = async (pid: number | undefined) => {
-    if (conversationId) { await syncUpdateConversation(conversationId, { projectId: pid }); setLinkedProjectId(pid); loadHistory(); }
+    if (conversationId) {
+      const conv = await db.conversations.get(conversationId);
+      let title = conv?.title || 'New Session';
+
+      if (pid && (title === 'New Session' || !title.trim())) {
+        const proj = await db.projects.get(Number(pid));
+        if (proj) {
+          const firstUserMsg = conv?.messages?.find((m: any) => m.role === 'user')?.content || '';
+          const settings = await db.settings.toArray();
+          const apiKey = settings[0]?.geminiApiKey;
+
+          if (firstUserMsg && apiKey) {
+            try {
+              const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                body: JSON.stringify({
+                  contents: [{
+                    role: 'user',
+                    parts: [{
+                      text: `Generate a premium, concise 2-3 word chat session title. The chat is discussing: "${firstUserMsg}" in the context of the linked project "${proj.title}". Avoid generic names. Return ONLY the 2-3 words without quotes or formatting.`
+                    }]
+                  }],
+                  generationConfig: { temperature: 0.7, maxOutputTokens: 15 }
+                })
+              });
+              if (r.ok) {
+                const d = await r.json();
+                const t = d.candidates?.[0]?.content?.parts?.[0]?.text?.replace(/[\"*]/g, '').trim();
+                if (t) title = t;
+              }
+            } catch {}
+          } else {
+            title = `${proj.title} Chat`;
+          }
+        }
+      }
+
+      await syncUpdateConversation(conversationId, { projectId: pid, title, updatedAt: new Date() });
+      setLinkedProjectId(pid);
+      loadHistory();
+    }
   };
 
   const handleEditMessage = async (index: number, newContent: string) => {
@@ -1003,10 +1043,32 @@ Always take the initiative. If the user tells you about an activity they complet
           let title = (await db.conversations.get(conversationId))?.title || 'New Session';
           if (title === 'New Session' && finalMessages.length >= 2) {
             try {
+              let projectCtx = '';
+              const conv = await db.conversations.get(conversationId);
+              if (conv?.projectId) {
+                const proj = await db.projects.get(Number(conv.projectId));
+                if (proj) {
+                  projectCtx = `in the context of the linked project "${proj.title}"`;
+                }
+              }
+              
+              const promptText = `Provide a premium, highly contextual 2-3 word title summarizing the user request: "${msgText}" ${projectCtx}. 
+Avoid generic titles like "New Session" or "Project Discussion". 
+Be specific, professional, and descriptive (e.g., "Drone Battery Setup", "React Grid Drag-Drop", "Prisma Milestone Sync"). 
+Do not include any quotes, asterisks, markdown, prefix, or trailing punctuation. Output ONLY the raw 2-3 words.`;
+
               const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`, {
-                method: 'POST', body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: `Give a 2-3 word title for: ${msgText}` }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 10 } })
+                method: 'POST', 
+                body: JSON.stringify({ 
+                  contents: [{ role: 'user', parts: [{ text: promptText }] }], 
+                  generationConfig: { temperature: 0.7, maxOutputTokens: 15 } 
+                })
               });
-              if (r.ok) { const d = await r.json(); const t = d.candidates?.[0]?.content?.parts?.[0]?.text?.replace(/[\"*]/g, '').trim(); if (t) title = t; }
+              if (r.ok) { 
+                const d = await r.json(); 
+                const t = d.candidates?.[0]?.content?.parts?.[0]?.text?.replace(/[\"*]/g, '').trim(); 
+                if (t) title = t; 
+              }
             } catch { }
           }
           await syncUpdateConversation(conversationId, { messages: finalMessages, title, updatedAt: new Date() });

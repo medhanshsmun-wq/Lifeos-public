@@ -7,6 +7,7 @@ import { serverDb } from '@/lib/serverDb';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SpotifyProvider, useSpotify } from '@/lib/SpotifyContext';
 import ArcReactorLoader from '@/components/ArcReactorLoader';
+import { RefreshCw } from 'lucide-react';
 
 // ─── Spotify Ambient Controller ─────────────────────────────
 function AmbientController() {
@@ -67,6 +68,7 @@ function ThemeManager() {
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error'>('synced');
 
   useEffect(() => {
     let lastSyncTime = 0;
@@ -155,6 +157,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       }
 
       syncInProgress = true;
+      setSyncStatus('syncing');
       try {
         console.log('🔄 Initiating full cloud sync from Supabase...');
         
@@ -489,9 +492,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         }));
       } catch (e) {
         console.error('Error during full bidirectional sync:', e);
+        setSyncStatus('error');
       } finally {
         lastSyncTime = Date.now();
         syncInProgress = false;
+        setSyncStatus(prev => prev === 'error' ? 'error' : 'synced');
       }
     };
 
@@ -556,10 +561,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     };
     window.addEventListener('focus', handleFocusSync);
 
-    const handleTriggerSync = () => {
+    const handleTriggerSync = (e?: Event) => {
       if (active) {
-        console.log('⚡ App mutation event, triggering cloud sync...');
-        syncAllFromCloud();
+        const isManual = (e as CustomEvent)?.detail?.isManual || false;
+        console.log(`⚡ App mutation event, triggering cloud sync (isManual: ${isManual})...`);
+        syncAllFromCloud(isManual);
       }
     };
     window.addEventListener('lifeos-trigger-sync', handleTriggerSync);
@@ -599,6 +605,30 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           >
             <Sidebar />
             <main className="flex-1 flex flex-col overflow-y-auto overflow-x-hidden scroll-smooth relative">
+              {/* Premium Floating Manual Sync Action Button */}
+              <div className="fixed top-4 right-4 md:top-6 md:right-6 z-50">
+                <button
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent('lifeos-trigger-sync', { detail: { isManual: true } }));
+                  }}
+                  disabled={syncStatus === 'syncing'}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-mono tracking-tight transition-all backdrop-blur-xl border duration-300 active:scale-95 disabled:opacity-85 bg-black/40 border-white/[0.06] hover:border-[var(--accent)]/30 hover:bg-black/60 text-[var(--text-secondary)] shadow-lg shadow-black/40 group"
+                  title="Force manual database sync between all devices"
+                >
+                  <RefreshCw className={`w-3 h-3 text-[var(--accent)] transition-transform duration-500 group-hover:rotate-180 ${syncStatus === 'syncing' ? 'animate-spin' : ''}`} />
+                  <span>
+                    {syncStatus === 'syncing' ? 'Syncing...' : syncStatus === 'error' ? 'Sync Failed' : 'Synced'}
+                  </span>
+                  <span className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
+                    syncStatus === 'syncing' 
+                      ? 'bg-sky-400 animate-pulse shadow-[0_0_6px_rgba(56,189,248,0.6)]' 
+                      : syncStatus === 'error' 
+                        ? 'bg-red-500 animate-bounce shadow-[0_0_6px_rgba(239,68,68,0.6)]' 
+                        : 'bg-[#6ee7b7] shadow-[0_0_6px_rgba(110,231,183,0.6)]'
+                  }`} />
+                </button>
+              </div>
+
               <div className="flex-1 w-full flex flex-col">{children}</div>
             </main>
           </motion.div>
