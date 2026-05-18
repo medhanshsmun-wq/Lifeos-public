@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db, type Project, type Milestone } from '@/lib/db';
+import { serverDb } from '@/lib/serverDb';
 import {
   FolderKanban, Plus, Search, Filter, ExternalLink, GitBranch,
   X, Calendar, Tag, Layers, ChevronDown, Check, Clock,
@@ -54,6 +55,7 @@ export default function ProjectsPage() {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [showAdd, setShowAdd] = useState(false);
+  const [projectToEdit, setProjectToEdit] = useState<Project | null>(null);
 
   const load = useCallback(async () => {
     const p = await db.projects.orderBy('updatedAt').reverse().toArray();
@@ -61,6 +63,22 @@ export default function ProjectsPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const handleDelete = async (id: number) => {
+    const confirmDelete = window.confirm("Are you sure you want to terminate this project node? This will delete the project and all its milestones.");
+    if (confirmDelete) {
+      await db.projects.delete(id);
+      
+      // Sync delete to server
+      try {
+        await serverDb.projects.delete(id);
+      } catch (err) {
+        console.warn('Failed to sync project deletion to server:', err);
+      }
+      
+      load();
+    }
+  };
 
   const filtered = projects.filter(p => {
     const matchSearch = p.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -120,7 +138,13 @@ export default function ProjectsPage() {
         {/* Projects Grid */}
         <motion.div variants={container} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {filtered.map((proj) => (
-            <ProjectCard key={proj.id} project={proj} onClick={() => router.push(`/projects/${proj.id}`)} />
+            <ProjectCard
+              key={proj.id}
+              project={proj}
+              onClick={() => router.push(`/projects/${proj.id}`)}
+              onEdit={() => setProjectToEdit(proj)}
+              onDelete={() => handleDelete(proj.id!)}
+            />
           ))}
         </motion.div>
 
@@ -136,13 +160,20 @@ export default function ProjectsPage() {
       {/* Overlays */}
       <AnimatePresence>
         {showAdd && <AddProjectOverlay onClose={() => setShowAdd(false)} onSaved={load} />}
+        {projectToEdit && (
+          <AddProjectOverlay
+            projectToEdit={projectToEdit}
+            onClose={() => setProjectToEdit(null)}
+            onSaved={load}
+          />
+        )}
       </AnimatePresence>
     </div>
   );
 }
 
 // ─── Project Card Component ──────────────────────────────
-function ProjectCard({ project, onClick }: { project: Project; onClick: () => void }) {
+function ProjectCard({ project, onClick, onEdit, onDelete }: { project: Project; onClick: () => void; onEdit: () => void; onDelete: () => void }) {
   const statusConf = STATUS_CONFIG[project.status];
   const StatusIcon = statusConf.icon;
   const categoryIcon = CATEGORY_CONFIG[project.category]?.icon || Code2;
@@ -157,6 +188,30 @@ function ProjectCard({ project, onClick }: { project: Project; onClick: () => vo
       onClick={onClick}
       className="glass-card p-6 cursor-pointer hover:border-[var(--border-glow)] transition-all duration-300 shine-hover group relative overflow-hidden"
     >
+      {/* Hover Action Bar */}
+      <div className="absolute top-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit();
+          }}
+          className="p-1.5 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--accent-cyan)] hover:border-[var(--accent-cyan)]/30 transition-all shadow-md"
+          title="Edit Project"
+        >
+          <Edit3 className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          className="p-1.5 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-red-400 hover:border-red-400/30 transition-all shadow-md"
+          title="Delete Project"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
       <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
         <CategoryIcon className="w-16 h-16" />
       </div>
@@ -608,26 +663,74 @@ function ProjectDashboard({ project, onClose, onUpdate, setGlobalModal }: { proj
 }
 
 // ─── Add Project Overlay (Dynamic Logging) ────────────────
-function AddProjectOverlay({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+function AddProjectOverlay({ onClose, onSaved, projectToEdit }: { onClose: () => void; onSaved: () => void; projectToEdit?: Project }) {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({
-    title: '', description: '', notes: '', tags: '', category: 'Software',
-    techStack: '', projectType: 'Individual', difficulty: 'Medium' as Project['difficulty'],
-    status: 'Planned' as Project['status'], githubUrl: '', deployedUrl: '', youtubeUrl: '', docsUrl: '',
+    title: projectToEdit?.title || '',
+    description: projectToEdit?.description || '',
+    notes: projectToEdit?.notes || '',
+    tags: projectToEdit?.tags?.join(', ') || '',
+    category: projectToEdit?.category || 'Software',
+    techStack: projectToEdit?.techStack?.join(', ') || '',
+    projectType: projectToEdit?.projectType || 'Individual',
+    difficulty: projectToEdit?.difficulty || 'Medium' as Project['difficulty'],
+    status: projectToEdit?.status || 'Planned' as Project['status'],
+    githubUrl: projectToEdit?.githubUrl || '',
+    deployedUrl: projectToEdit?.deployedUrl || '',
+    youtubeUrl: projectToEdit?.youtubeUrl || '',
+    docsUrl: projectToEdit?.docsUrl || '',
   });
 
   const save = async () => {
     if (!form.title) return;
-    await db.projects.add({
-      ...form,
+    const projectData = {
+      title: form.title,
+      description: form.description,
+      notes: form.notes,
       tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
+      category: form.category,
       techStack: form.techStack.split(',').map(t => t.trim()).filter(Boolean),
-      links: [],
-      files: [],
-      milestones: [],
-      createdAt: new Date(),
+      projectType: form.projectType,
+      difficulty: form.difficulty,
+      status: form.status,
+      githubUrl: form.githubUrl,
+      deployedUrl: form.deployedUrl,
+      youtubeUrl: form.youtubeUrl,
+      docsUrl: form.docsUrl,
       updatedAt: new Date(),
-    });
+    };
+
+    if (projectToEdit) {
+      await db.projects.update(projectToEdit.id!, projectData);
+      
+      // Sync update to server
+      try {
+        const fullProject = await db.projects.get(projectToEdit.id!);
+        if (fullProject) {
+          await serverDb.projects.put(fullProject);
+        }
+      } catch (err) {
+        console.warn('Failed to sync project update to server:', err);
+      }
+    } else {
+      const newId = await db.projects.add({
+        ...projectData,
+        links: [],
+        files: [],
+        milestones: [],
+        createdAt: new Date(),
+      });
+      
+      // Sync add to server
+      try {
+        const fullProject = await db.projects.get(newId);
+        if (fullProject) {
+          await serverDb.projects.add(fullProject);
+        }
+      } catch (err) {
+        console.warn('Failed to sync project creation to server:', err);
+      }
+    }
     onSaved();
     onClose();
   };
@@ -728,7 +831,7 @@ function AddProjectOverlay({ onClose, onSaved }: { onClose: () => void; onSaved:
               onClick={() => step === 3 ? save() : setStep(s => s + 1)}
               className="px-8 py-3 rounded-2xl bg-gradient-to-r from-[var(--accent-cyan)] to-[var(--accent-blue)] text-white font-bold text-xs uppercase tracking-widest hover:opacity-90 transition-all shadow-lg shadow-blue-500/20"
             >
-              {step === 3 ? 'Initialize Project' : 'Next Protocol'}
+              {step === 3 ? (projectToEdit ? 'Update Project' : 'Initialize Project') : 'Next Protocol'}
             </button>
           </div>
         </div>
