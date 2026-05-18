@@ -172,6 +172,32 @@ export const SpotifyProvider = ({ children }: { children: React.ReactNode }) => 
       }
     }
 
+    // Fetch available devices to support mobile playback and fallback devices
+    if (!isRateLimited()) {
+      try {
+        const devicesRes = await spotifyFetch(
+          'https://api.spotify.com/v1/me/player/devices',
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (devicesRes && devicesRes.status === 200) {
+          const devicesData = await devicesRes.json();
+          const devices = devicesData.devices || [];
+          const activeDevice = devices.find((d: any) => d.is_active) || devices[0];
+          if (activeDevice) {
+            setDeviceId(activeDevice.id);
+          } else {
+            const isMobile = typeof window !== 'undefined' && 
+              (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.maxTouchPoints && navigator.maxTouchPoints > 1));
+            if (isMobile) {
+              setDeviceId(null);
+            }
+          }
+        }
+      } catch (devicesErr) {
+        console.warn('Failed to fetch available Spotify devices', devicesErr);
+      }
+    }
+
     // Fetch top artists only once per session (they barely change)
     if (!topArtistsCachedRef.current && !isRateLimited()) {
       const artistsRes = await spotifyFetch(
@@ -201,21 +227,36 @@ export const SpotifyProvider = ({ children }: { children: React.ReactNode }) => 
     };
     init();
 
-    // Poll every 30s but respect rate limits
-    const interval = setInterval(() => {
-      if (!isRateLimited()) {
+    // Fast active-polling (every 10s) when window is active / visible
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && !isRateLimited()) {
+        fetchData(true);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    const activePoll = setInterval(() => {
+      if (document.visibilityState === 'visible' && !isRateLimited()) {
         fetchData();
-      } else {
-        // Check if rate limit has expired
-        if (Date.now() >= globalBackoffUntil) {
-          setRateLimited(false);
-          setRateLimitResetAt(null);
-          fetchData(true); // Try again
-        }
+      }
+    }, 10000);
+
+    // Standard fallback background poll (every 30s)
+    const interval = setInterval(() => {
+      if (document.visibilityState !== 'visible' && !isRateLimited()) {
+        fetchData();
+      } else if (isRateLimited() && Date.now() >= globalBackoffUntil) {
+        setRateLimited(false);
+        setRateLimitResetAt(null);
+        fetchData(true); // Try again
       }
     }, 30000);
 
-    return () => clearInterval(interval);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearInterval(activePoll);
+      clearInterval(interval);
+    };
   }, [fetchData]);
 
   // Initialize Web Playback SDK

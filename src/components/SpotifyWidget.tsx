@@ -284,7 +284,12 @@ export default function SpotifyWidget() {
             <p className="text-sm font-medium text-[var(--text-secondary)]">No active playback</p>
             {deviceId ? (
               <button onClick={transferPlayback} className="px-4 py-2 rounded-xl bg-[#6ee7b7] text-black font-semibold text-xs hover:scale-105 transition-all flex items-center gap-2">
-                <MonitorSpeaker className="w-4 h-4" /> Start Web Player
+                <MonitorSpeaker className="w-4 h-4" /> {
+                  typeof window !== 'undefined' && 
+                  (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.maxTouchPoints && navigator.maxTouchPoints > 1))
+                    ? 'Activate Device'
+                    : 'Start Web Player'
+                }
               </button>
             ) : (
               <Loader2 className="w-4 h-4 animate-spin text-[var(--text-tertiary)]" />
