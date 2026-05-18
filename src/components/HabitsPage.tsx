@@ -118,7 +118,13 @@ export default function HabitsPage() {
     
     // Check if habit already exists
     if (habitsList.some(h => h.name.toLowerCase() === newHabitName.trim().toLowerCase())) {
-      alert('This habit already exists.');
+      setModal({
+        isOpen: true,
+        type: 'alert',
+        title: 'Habit Exists',
+        message: `The habit "${newHabitName.trim()}" already exists. Please choose a different name!`,
+        onConfirm: () => setModal(null)
+      });
       return;
     }
 

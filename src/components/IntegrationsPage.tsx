@@ -8,6 +8,7 @@ import { db, type UserSettings } from '@/lib/db';
 import { serverDb } from '@/lib/serverDb';
 import { useSpotify } from '@/lib/SpotifyContext';
 import { useAuth } from '@/components/auth/AuthContext';
+import SystemModal from './SystemModal';
 
 const fi = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0 } };
 
@@ -167,6 +168,7 @@ function IntegrationsContent() {
   const { user } = useAuth();
   const [showHealthGuide, setShowHealthGuide] = useState(false);
   const [serverUrl, setServerUrl] = useState('');
+  const [modal, setModal] = useState<any>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -224,8 +226,16 @@ function IntegrationsContent() {
   const handleConnect = async (name: string) => {
     if (name === 'Spotify') {
       if (!settings?.spotifyClientId) {
-        alert('Please configure your Spotify Client ID in Settings first.');
-        router.push('/settings');
+        setModal({
+          isOpen: true,
+          type: 'alert',
+          title: 'Spotify Setup Required',
+          message: 'Please configure your Spotify Client ID in Settings first to authorize integration.',
+          onConfirm: () => {
+            setModal(null);
+            router.push('/settings');
+          }
+        });
         return;
       }
       const scope = 'user-read-private user-read-email user-top-read user-read-recently-played user-read-playback-state user-modify-playback-state streaming user-library-read playlist-read-private playlist-read-collaborative';
@@ -326,6 +336,16 @@ function IntegrationsContent() {
         onClose={() => setShowHealthGuide(false)} 
         email={user?.email || ''} 
         serverUrl={serverUrl} 
+      />
+
+      <SystemModal 
+        isOpen={!!modal?.isOpen} 
+        type={modal?.type || 'alert'} 
+        title={modal?.title || ''} 
+        message={modal?.message || ''} 
+        defaultValue={modal?.defaultValue} 
+        onConfirm={modal?.onConfirm || (() => {})} 
+        onCancel={() => setModal(null)} 
       />
     </div>
   );
