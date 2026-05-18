@@ -170,43 +170,47 @@ export default function ProjectDetailPage({ projectId }: { projectId: string }) 
     <div className="min-h-full">
       {/* Top Bar */}
       <div className="sticky top-0 z-20 bg-[var(--bg-primary)]/80 backdrop-blur-xl border-b border-[var(--border-subtle)]">
-        <div className="max-w-[1400px] mx-auto px-6 lg:px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button onClick={() => router.push('/projects')} className="p-2 rounded-xl hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] transition-colors">
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl" style={{ background: statusConf.bg }}>
+        <div className="max-w-[1400px] mx-auto px-4 md:px-8 py-3 md:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start justify-between gap-3 w-full">
+            <div className="flex items-center gap-3 min-w-0">
+              <button onClick={() => router.push('/projects')} className="p-2 -ml-2 rounded-xl hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] transition-colors shrink-0">
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div className="p-2 rounded-xl shrink-0" style={{ background: statusConf.bg }}>
                 <CatIcon className="w-5 h-5" style={{ color: statusConf.color }} />
               </div>
-              <div>
-                <h1 className="text-lg font-bold text-[var(--text-primary)]">{project.title}</h1>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className={`badge ${DIFFICULTY_COLORS[project.difficulty]}`}>{project.difficulty}</span>
-                  <span className="badge badge-purple">{project.category}</span>
-                  <span className="text-[10px] text-[var(--text-muted)]">•</span>
-                  <span className="text-[10px] text-[var(--text-tertiary)]">{project.projectType}</span>
+              <div className="min-w-0">
+                <h1 className="text-base md:text-lg font-bold text-[var(--text-primary)] truncate leading-tight">{project.title}</h1>
+                <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                  <span className={`badge ${DIFFICULTY_COLORS[project.difficulty]} text-[9px] px-1.5 py-0.5 shrink-0`}>{project.difficulty}</span>
+                  <span className="badge badge-purple text-[9px] px-1.5 py-0.5 shrink-0">{project.category}</span>
+                  <span className="text-[10px] text-[var(--text-muted)] shrink-0">•</span>
+                  <span className="text-[9px] text-[var(--text-tertiary)] uppercase tracking-wider shrink-0 font-medium">{project.projectType}</span>
                 </div>
               </div>
             </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <select value={project.status} onChange={e => updateStatus(e.target.value)}
-              className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border cursor-pointer outline-none transition-all appearance-none"
-              style={{ background: statusConf.bg, color: statusConf.color, borderColor: statusConf.color + '40' }}>
-              {Object.keys(STATUS_CONFIG).map(s => <option key={s} value={s} className="bg-[var(--bg-primary)]">{s}</option>)}
-            </select>
-            <button onClick={deleteProject} className="p-2 rounded-xl hover:bg-red-500/10 text-red-400 transition-colors" title="Delete Project">
-              <Trash2 className="w-4 h-4" />
-            </button>
+            
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="relative shrink-0">
+                <select value={project.status} onChange={e => updateStatus(e.target.value)}
+                  className="pl-2.5 pr-6 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider border cursor-pointer outline-none transition-all appearance-none bg-transparent"
+                  style={{ background: statusConf.bg, color: statusConf.color, borderColor: statusConf.color + '40' }}>
+                  {Object.keys(STATUS_CONFIG).map(s => <option key={s} value={s} className="bg-[var(--bg-primary)]">{s}</option>)}
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: statusConf.color }} />
+              </div>
+              <button onClick={deleteProject} className="p-2 rounded-xl hover:bg-red-500/10 text-red-400 transition-colors shrink-0" title="Delete Project">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="max-w-[1400px] mx-auto px-6 lg:px-8 flex gap-8">
+        {/* Tabs - Swipable/Scrollable on mobile */}
+        <div className="max-w-[1400px] mx-auto px-4 md:px-8 flex gap-4 md:gap-8 overflow-x-auto whitespace-nowrap scrollbar-none scroll-smooth">
           {tabs.map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
-              className={`pb-3 text-xs font-bold uppercase tracking-widest flex items-center gap-2 transition-all border-b-2 ${activeTab === tab.id ? 'border-[var(--accent-cyan)] text-[var(--accent-cyan)]' : 'border-transparent text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'}`}>
+              className={`pb-3 text-xs font-bold uppercase tracking-widest flex items-center gap-2 transition-all border-b-2 shrink-0 ${activeTab === tab.id ? 'border-[var(--accent-cyan)] text-[var(--accent-cyan)]' : 'border-transparent text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'}`}>
               <tab.icon className="w-3.5 h-3.5" />{tab.label}
             </button>
           ))}
@@ -214,10 +218,10 @@ export default function ProjectDetailPage({ projectId }: { projectId: string }) 
       </div>
 
       {/* Content */}
-      <div className="max-w-[1400px] mx-auto px-6 lg:px-8 py-8">
+      <div className="max-w-[1400px] mx-auto px-4 md:px-8 py-6 md:py-8">
         {/* Progress Bar */}
-        <div className="mb-8 glass-card p-5">
-          <div className="flex justify-between text-[10px] font-bold uppercase tracking-tighter mb-2">
+        <div className="mb-6 md:mb-8 glass-card p-4 md:p-5">
+          <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider mb-2">
             <span className="text-[var(--text-tertiary)]">Neural Progress</span>
             <span className="text-[var(--text-secondary)]">{completedMs}/{project.milestones.length} milestones • {Math.round(progressPct)}%</span>
           </div>
