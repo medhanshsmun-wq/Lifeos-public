@@ -11,8 +11,17 @@ import { useSpotify } from '@/lib/SpotifyContext';
 const fi = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0 } };
 
 // Spotify requires 127.0.0.1 instead of localhost since 2025 security policy
-// HARDCODED to prevent any mismatch between auth request and token exchange
-const SPOTIFY_REDIRECT_URI = 'http://127.0.0.1:3000/api/auth/callback/spotify';
+// Dynamically computed to prevent any mismatch between auth request and token exchange
+const getSpotifyRedirectUri = () => {
+  if (typeof window !== 'undefined') {
+    const origin = window.location.origin;
+    if (origin.includes('localhost')) {
+      return origin.replace('localhost', '127.0.0.1') + '/api/auth/callback/spotify';
+    }
+    return `${origin}/api/auth/callback/spotify`;
+  }
+  return 'http://127.0.0.1:3000/api/auth/callback/spotify';
+};
 
 function IntegrationsContent() {
   const router = useRouter();
@@ -35,7 +44,7 @@ function IntegrationsContent() {
       if (code && s.length > 0 && s[0].spotifyClientId && s[0].spotifyClientSecret && !isConnecting) {
         setIsConnecting(true);
         try {
-          const redirectUri = SPOTIFY_REDIRECT_URI;
+          const redirectUri = getSpotifyRedirectUri();
           const res = await fetch('/api/spotify/token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -77,7 +86,7 @@ function IntegrationsContent() {
         return;
       }
       const scope = 'user-read-private user-read-email user-top-read user-read-recently-played user-read-playback-state user-modify-playback-state streaming user-library-read playlist-read-private playlist-read-collaborative';
-      const redirectUri = SPOTIFY_REDIRECT_URI;
+      const redirectUri = getSpotifyRedirectUri();
       const authUrl = `https://accounts.spotify.com/authorize?client_id=${settings.spotifyClientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}`;
       window.location.href = authUrl;
     } else if (name === 'Apple Health' && settings?.id) {

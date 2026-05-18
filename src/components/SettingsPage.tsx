@@ -15,6 +15,7 @@ export default function SettingsPage() {
   const [migrating, setMigrating] = useState(false);
   const [migrationStatus, setMigrationStatus] = useState<string | null>(null);
   const [modal, setModal] = useState<{ isOpen: boolean, type: 'alert' | 'confirm' | 'prompt', title: string, message: string, defaultValue?: string, onConfirm: (v?: string) => void } | null>(null);
+  const [spotifyRedirectUri, setSpotifyRedirectUri] = useState('http://127.0.0.1:3000/api/auth/callback/spotify');
 
   useEffect(() => {
     db.settings.toArray().then(s => { 
@@ -26,6 +27,15 @@ export default function SettingsPage() {
         });
       } 
     });
+
+    if (typeof window !== 'undefined') {
+      const origin = window.location.origin;
+      if (origin.includes('localhost')) {
+        setSpotifyRedirectUri(origin.replace('localhost', '127.0.0.1') + '/api/auth/callback/spotify');
+      } else {
+        setSpotifyRedirectUri(`${origin}/api/auth/callback/spotify`);
+      }
+    }
   }, []);
 
   const save = async () => {
@@ -157,7 +167,7 @@ export default function SettingsPage() {
           </h3>
           <div><label className="text-xs font-medium text-[var(--text-secondary)] mb-1 block">Client ID</label><input value={settings.spotifyClientId || ''} onChange={e => setSettings({...settings, spotifyClientId: e.target.value})} placeholder="Spotify Client ID" className="w-full px-3 py-2.5 rounded-xl bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-sm outline-none focus:border-[#1db954]" /></div>
           <div><label className="text-xs font-medium text-[var(--text-secondary)] mb-1 block">Client Secret</label><input type="password" value={settings.spotifyClientSecret || ''} onChange={e => setSettings({...settings, spotifyClientSecret: e.target.value})} placeholder="Spotify Client Secret" className="w-full px-3 py-2.5 rounded-xl bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-sm outline-none focus:border-[#1db954]" /></div>
-          <p className="text-[10px] text-[var(--text-muted)]">Set redirect URI to <code className="text-[var(--accent-cyan)] font-mono">http://127.0.0.1:3000/api/auth/callback/spotify</code> in your <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noreferrer" className="text-[var(--accent-cyan)] hover:underline">Spotify Developer Dashboard</a>.</p>
+          <p className="text-[10px] text-[var(--text-muted)]">Set redirect URI to <code className="text-[var(--accent-cyan)] font-mono">{spotifyRedirectUri}</code> in your <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noreferrer" className="text-[var(--accent-cyan)] hover:underline">Spotify Developer Dashboard</a>.</p>
         </motion.div>
 
         {/* System Configuration */}
