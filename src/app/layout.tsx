@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import AuthProvider from "@/components/auth/AuthProvider";
 
 export const metadata: Metadata = {
   title: "LifeOS — Personal Operating System",
@@ -64,7 +65,7 @@ export default function RootLayout({
           <div className="spotify-orb" id="spotify-orb" />
         </div>
         <div className="relative z-10 h-full w-full">
-          {children}
+          <AuthProvider>{children}</AuthProvider>
         </div>
         <script
           dangerouslySetInnerHTML={{

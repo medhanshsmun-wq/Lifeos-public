@@ -7,14 +7,38 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Account {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  pinHash   String
+  createdAt DateTime @default(now())
+
+  settings      UserSettings?
+  projects      Project[]
+  finance       FinanceEntry[]
+  fitness       FitnessEntry[]
+  diet          DietEntry[]
+  gym           GymEntry[]
+  hobbies       HobbyEntry[]
+  subjects      Subject[]
+  study         StudySession[]
+  habits        HabitEntry[]
+  conversations AIConversation[]
+  weeklyReports WeeklyReport[]
+  timeline      TimelineEvent[]
+  trades        Trade[]
+}
+
 model Project {
   id           Int         @id @default(autoincrement())
+  accountId    Int
   title        String
   description  String
   notes        String
-  tags         String      // Stored as JSON string or comma-separated
+  tags         String
   category     String
-  techStack    String      // Stored as JSON string
+  techStack    String
   projectType  String
   difficulty   String
   status       String
@@ -22,11 +46,14 @@ model Project {
   deployedUrl  String
   youtubeUrl   String
   docsUrl      String
-  links        String      // JSON string: Array<{ title: string; url: string }>
-  files        String      // JSON string: Array<{ name: string; url: string; type: string }>
+  links        String
+  files        String
   milestones   Milestone[]
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
+  account      Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
 }
 
 model Milestone {
@@ -40,44 +67,60 @@ model Milestone {
 }
 
 model FinanceEntry {
-  id         Int      @id @default(autoincrement())
-  amount     Float
-  type       String   // 'income' | 'expense'
-  category   String
+  id          Int      @id @default(autoincrement())
+  accountId   Int
+  amount      Float
+  type        String
+  category    String
   description String
-  date       DateTime
-  aiCategory String?
+  date        DateTime
+  aiCategory  String?
+  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
 }
 
 model FitnessEntry {
   id             Int      @id @default(autoincrement())
+  accountId      Int
   date           DateTime
   steps          Int
   distance       Float
   caloriesBurned Int
   activeMinutes  Int
   notes          String
+  account        Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
 }
 
 model DietEntry {
-  id         Int      @id @default(autoincrement())
-  date       DateTime
-  mealType   String
-  food       String
-  calories   Int
-  protein    Int
-  carbs      Int
-  fat        Int
+  id          Int      @id @default(autoincrement())
+  accountId   Int
+  date        DateTime
+  mealType    String
+  food        String
+  calories    Int
+  protein     Int
+  carbs       Int
+  fat         Int
   aiBreakdown String
+  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
 }
 
 model GymEntry {
-  id          Int           @id @default(autoincrement())
-  date        DateTime
-  muscleGroup String
-  exercises   GymExercise[]
-  isRestDay   Boolean       @default(false)
+  id           Int           @id @default(autoincrement())
+  accountId    Int
+  date         DateTime
+  muscleGroup  String
+  exercises    GymExercise[]
+  isRestDay    Boolean       @default(false)
   aiSuggestion String?
+  account      Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
 }
 
 model GymExercise {
@@ -92,16 +135,21 @@ model GymExercise {
 
 model HobbyEntry {
   id        Int      @id @default(autoincrement())
+  accountId Int
   name      String
   category  String
   timeSpent Int
   date      DateTime
   notes     String
   milestone String?
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
 }
 
 model Subject {
   id               Int               @id @default(autoincrement())
+  accountId        Int
   name             String
   instructor       String?
   semester         String?
@@ -112,6 +160,9 @@ model Subject {
   color            String
   createdAt        DateTime          @default(now())
   assignments      StudyAssignment[]
+  account          Account           @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
 }
 
 model StudyAssignment {
@@ -128,6 +179,7 @@ model StudyAssignment {
 
 model StudySession {
   id            Int      @id @default(autoincrement())
+  accountId     Int
   subject       String
   subjectId     Int?
   topic         String
@@ -138,23 +190,34 @@ model StudySession {
   focusLevel    Int?
   studyMethod   String?
   breakDuration Int?
+  account       Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
 }
 
 model HabitEntry {
   id        Int      @id @default(autoincrement())
+  accountId Int
   habitName String
   completed Boolean
   date      DateTime
   streak    Int
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
 }
 
 model AIConversation {
   id        Int           @id @default(autoincrement())
+  accountId Int
   title     String
   projectId Int?
   messages  ChatMessage[]
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
+  account   Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
 }
 
 model ChatMessage {
@@ -169,36 +232,45 @@ model ChatMessage {
 
 model WeeklyReport {
   id                Int      @id @default(autoincrement())
+  accountId         Int
   weekStart         DateTime
   weekEnd           DateTime
   summary           String
   productivityScore Float
-  highlights        String   // JSON string
+  highlights        String
   aiInsights        String
   createdAt         DateTime @default(now())
+  account           Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
 }
 
 model TimelineEvent {
   id          Int      @id @default(autoincrement())
+  accountId   Int
   title       String
   description String
   category    String
   date        DateTime
   icon        String?
+  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
 }
 
 model UserSettings {
-  id                    Int      @id @default(autoincrement())
+  id                    Int     @id @default(autoincrement())
+  accountId             Int     @unique
   geminiApiKey          String
   githubToken           String
   githubUsername        String
-  cloudBackupEnabled    Boolean  @default(false)
-  theme                 String   @default("dark")
-  accentColor           String   @default("#00F5FF")
-  dashboardWidgets      String   // JSON string
+  cloudBackupEnabled    Boolean @default(false)
+  theme                 String  @default("dark")
+  accentColor           String  @default("#00F5FF")
+  dashboardWidgets      String
   name                  String
   avatar                String
-  propFirmAccountsCount Int      @default(1)
+  propFirmAccountsCount Int     @default(1)
   propFirmName          String?
   propFirmSize          Int?
   spotifyClientId       String?
@@ -206,12 +278,14 @@ model UserSettings {
   spotifyAccessToken    String?
   spotifyRefreshToken   String?
   spotifyExpiresAt      BigInt?
-  summerBreakMode       Boolean  @default(false)
-  appleHealthEnabled    Boolean  @default(false)
+  summerBreakMode       Boolean @default(false)
+  appleHealthEnabled    Boolean @default(false)
+  account               Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
 }
 
 model Trade {
   id            Int      @id @default(autoincrement())
+  accountId     Int
   ticker        String
   marketType    String
   side          String
@@ -230,10 +304,13 @@ model Trade {
   setupType     String
   confidence    Int
   notes         String
-  mistakes      String   // JSON string
+  mistakes      String
   emotions      String
   screenshotUrl String?
-  tags          String   // JSON string
+  tags          String
   isPaperTrade  Boolean  @default(false)
   propFirm      String?
+  account       Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
 }

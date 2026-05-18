@@ -7,9 +7,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Bot, FolderKanban, Gamepad2, Dumbbell, CandlestickChart,
   GraduationCap, BarChart3, FileText, Plug, Download, Settings,
-  GitBranch, Music, Play, Pause, SkipForward, Search, X, Menu, Flame,
+  GitBranch, Music, Play, Pause, SkipForward, Search, X, Menu, Flame, LogOut,
 } from 'lucide-react';
 import { useSpotify } from '@/lib/SpotifyContext';
+import { useAuth } from '@/components/auth/AuthContext';
 
 const NAV = [
   { section: 'Core', items: [
@@ -91,6 +92,7 @@ const MOBILE_TABS = [
 ];
 
 export default function Sidebar() {
+  const { user, logout } = useAuth();
   const path = usePathname();
   const [expanded, setExpanded] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -272,6 +274,22 @@ export default function Sidebar() {
           </div>
         </div>
       )}
+
+      {/* Account */}
+      <div className="px-3 pb-2 pt-1 border-t border-[rgba(255,255,255,0.06)]">
+        {expanded && user && (
+          <p className="text-[10px] text-[rgba(255,255,255,0.45)] truncate mb-1.5 px-1">{user.name}</p>
+        )}
+        <button
+          type="button"
+          onClick={() => logout()}
+          className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[10px] text-[rgba(255,255,255,0.4)] hover:text-red-300 hover:bg-red-500/10 transition-colors ${expanded ? '' : 'justify-center'}`}
+          title="Sign out"
+        >
+          <LogOut className="w-3.5 h-3.5" />
+          {expanded && <span>Sign out</span>}
+        </button>
+      </div>
 
       {/* Status dot */}
       <div className="px-3 pb-3 pt-1">

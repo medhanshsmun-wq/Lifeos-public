@@ -1,5 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { isDatabaseConfigured } from '@/lib/config';
+import { getAccountIdFromRequest } from '@/lib/auth/getSession';
+import { encryptSettings, decryptSettings } from '@/lib/auth/encryption';
+
+const MODELS_WITH_ACCOUNT = new Set([
+  'project',
+  'financeEntry',
+  'fitnessEntry',
+  'dietEntry',
+  'gymEntry',
+  'hobbyEntry',
+  'subject',
+  'studySession',
+  'habitEntry',
+  'aIConversation',
+  'weeklyReport',
+  'timelineEvent',
+  'trade',
+  'userSettings',
+]);
+
+function assertDatabaseConfigured() {
+  if (!isDatabaseConfigured()) {
+    return NextResponse.json(
+      { error: 'Cloud database is not configured. Set DATABASE_URL in your environment to enable server sync.' },
+      { status: 503 }
+    );
+  }
+  return null;
+}
+
+function assertAuthenticated(request: NextRequest) {
+  const accountId = getAccountIdFromRequest(request);
+  if (!accountId) {
+    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }), accountId: null };
+  }
+  return { error: null, accountId };
+}
 
 function jsonResponse(data: any, status = 200) {
   return new NextResponse(
@@ -34,6 +72,9 @@ function processDataForPrisma(model: string, data: any, isCreate = true): any {
   if (isCreate && processed.id !== undefined) {
     delete processed.id;
   }
+
+  // Never trust client-supplied accountId
+  delete processed.accountId;
 
   // Remove widgetSizes from userSettings as it is not in the Prisma schema
   if (model === 'userSettings' && processed.widgetSizes !== undefined) {
@@ -98,14 +139,25 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ model: string }> }
 ) {
+  const dbError = assertDatabaseConfigured();
+  if (dbError) return dbError;
+  const auth = assertAuthenticated(request);
+  if (auth.error) return auth.error;
+
   try {
     const { model } = await params;
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
+    if (model === 'account') {
+      return NextResponse.json({ error: 'Model not found' }, { status: 404 });
+    }
+
     // @ts-ignore - Dynamic access to prisma models
     const dbModel = prisma[model];
     if (!dbModel) return NextResponse.json({ error: 'Model not found' }, { status: 404 });
+
+    const accountFilter = MODELS_WITH_ACCOUNT.has(model) ? { accountId: auth.accountId! } : {};
 
     // Include relations when fetching
     const include = RELATION_FIELDS[model]?.reduce((acc: any, field: string) => {
@@ -114,11 +166,23 @@ export async function GET(
     }, {});
 
     if (id) {
-      const data = await dbModel.findUnique({ where: { id: parseInt(id) }, ...(include ? { include } : {}) });
+      let data = await dbModel.findFirst({
+        where: { id: parseInt(id), ...accountFilter },
+        ...(include ? { include } : {}),
+      });
+      if (model === 'userSettings' && data) {
+        data = decryptSettings(data);
+      }
       return jsonResponse(data);
     }
 
-    const data = await dbModel.findMany(include ? { include } : {});
+    let data = await dbModel.findMany({
+      where: accountFilter,
+      ...(include ? { include } : {}),
+    });
+    if (model === 'userSettings' && Array.isArray(data)) {
+      data = data.map(item => decryptSettings(item));
+    }
     return jsonResponse(data);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -129,15 +193,30 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ model: string }> }
 ) {
+  const dbError = assertDatabaseConfigured();
+  if (dbError) return dbError;
+  const auth = assertAuthenticated(request);
+  if (auth.error) return auth.error;
+
   try {
     const { model } = await params;
     const body = await request.json();
+
+    if (model === 'account') {
+      return NextResponse.json({ error: 'Model not found' }, { status: 404 });
+    }
 
     // @ts-ignore
     const dbModel = prisma[model];
     if (!dbModel) return NextResponse.json({ error: 'Model not found' }, { status: 404 });
 
-    const processedBody = processDataForPrisma(model, body, true);
+    let processedBody = processDataForPrisma(model, body, true);
+    if (MODELS_WITH_ACCOUNT.has(model)) {
+      processedBody.accountId = auth.accountId;
+    }
+    if (model === 'userSettings') {
+      processedBody = encryptSettings(processedBody);
+    }
 
     const include = RELATION_FIELDS[model]?.reduce((acc: any, field: string) => {
       acc[field] = true;
@@ -159,16 +238,35 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ model: string }> }
 ) {
+  const dbError = assertDatabaseConfigured();
+  if (dbError) return dbError;
+  const auth = assertAuthenticated(request);
+  if (auth.error) return auth.error;
+
   try {
     const { model } = await params;
     const body = await request.json();
     const { id, ...rawData } = body;
 
+    if (model === 'account') {
+      return NextResponse.json({ error: 'Model not found' }, { status: 404 });
+    }
+
     // @ts-ignore
     const dbModel = prisma[model];
     if (!dbModel) return NextResponse.json({ error: 'Model not found' }, { status: 404 });
 
-    const data = processDataForPrisma(model, rawData, false);
+    const existing = MODELS_WITH_ACCOUNT.has(model)
+      ? await dbModel.findFirst({ where: { id: parseInt(id), accountId: auth.accountId } })
+      : await dbModel.findUnique({ where: { id: parseInt(id) } });
+    if (!existing) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    let data = processDataForPrisma(model, rawData, false);
+    if (model === 'userSettings') {
+      data = encryptSettings(data);
+    }
 
     // For relation fields in update, delete existing children first then re-create
     const relationFields = RELATION_FIELDS[model] || [];
@@ -217,16 +315,31 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ model: string }> }
 ) {
+  const dbError = assertDatabaseConfigured();
+  if (dbError) return dbError;
+  const auth = assertAuthenticated(request);
+  if (auth.error) return auth.error;
+
   try {
     const { model } = await params;
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
     if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 });
+    if (model === 'account') {
+      return NextResponse.json({ error: 'Model not found' }, { status: 404 });
+    }
 
     // @ts-ignore
     const dbModel = prisma[model];
     if (!dbModel) return NextResponse.json({ error: 'Model not found' }, { status: 404 });
+
+    const existing = MODELS_WITH_ACCOUNT.has(model)
+      ? await dbModel.findFirst({ where: { id: parseInt(id), accountId: auth.accountId } })
+      : await dbModel.findUnique({ where: { id: parseInt(id) } });
+    if (!existing) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
 
     await dbModel.delete({ where: { id: parseInt(id) } });
     return NextResponse.json({ success: true });

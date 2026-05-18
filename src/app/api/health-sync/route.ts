@@ -1,24 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { isDatabaseConfigured } from '@/lib/config';
 
 export async function POST(req: NextRequest) {
   try {
-    const data = await req.json();
-    const { apiKey, steps, distance, caloriesBurned, activeMinutes } = data;
+    if (!isDatabaseConfigured()) {
+      return NextResponse.json(
+        { error: 'Cloud database is not configured. Set DATABASE_URL to use Apple Health sync.' },
+        { status: 503 }
+      );
+    }
 
-    // A simple secret to prevent unauthorized access.
-    // In production, use process.env.APPLE_HEALTH_SECRET
-    const SECRET = process.env.APPLE_HEALTH_SECRET || 'lifeos_health_123';
-    
+    const data = await req.json();
+    const { apiKey, email, steps, distance, caloriesBurned, activeMinutes } = data;
+
+    const SECRET = process.env.APPLE_HEALTH_SECRET?.trim();
+    if (!SECRET) {
+      return NextResponse.json(
+        { error: 'APPLE_HEALTH_SECRET is not configured on the server.' },
+        { status: 503 }
+      );
+    }
+
     if (apiKey !== SECRET) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check if Apple Health integration is enabled in Settings
-    const settings = await prisma.userSettings.findFirst();
-    if (!settings || !(settings as any).appleHealthEnabled) {
-      return NextResponse.json({ error: 'Apple Health sync is disabled in user settings' }, { status: 403 });
+    if (!email?.trim()) {
+      return NextResponse.json({ error: 'Account email is required in the request body' }, { status: 400 });
     }
+
+    const account = await prisma.account.findUnique({
+      where: { email: email.trim().toLowerCase() },
+      include: { settings: true },
+    });
+    if (!account?.settings?.appleHealthEnabled) {
+      return NextResponse.json({ error: 'Apple Health sync is disabled for this account' }, { status: 403 });
+    }
+
+    const accountId = account.id;
 
     // Determine today's boundaries (local time of the server)
     const today = new Date();
@@ -29,6 +49,7 @@ export async function POST(req: NextRequest) {
     // Look for an existing entry for today
     const existing = await prisma.fitnessEntry.findFirst({
       where: {
+        accountId,
         date: {
           gte: today,
           lt: tomorrow,
@@ -54,6 +75,7 @@ export async function POST(req: NextRequest) {
       // Create new entry
       await prisma.fitnessEntry.create({
         data: {
+          accountId,
           steps: steps || 0,
           distance: distance || 0,
           caloriesBurned: caloriesBurned || 0,

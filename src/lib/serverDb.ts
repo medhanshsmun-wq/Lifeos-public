@@ -9,6 +9,7 @@ async function apiRequest(model: string, method: string, data?: any, id?: number
   const options: RequestInit = {
     method,
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
   };
   if (data) options.body = JSON.stringify(data);
 

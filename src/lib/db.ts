@@ -251,8 +251,8 @@ class LifeOSDB extends Dexie {
   trades!: EntityTable<Trade, 'id'>;
   todos!: EntityTable<Todo, 'id'>;
 
-  constructor() {
-    super('LifeOSDB');
+  constructor(dbName = 'LifeOSDB') {
+    super(dbName);
     this.version(2).stores({
       projects: '++id, title, status, category, createdAt, updatedAt',
       finance: '++id, type, category, date, amount',
@@ -308,10 +308,17 @@ class LifeOSDB extends Dexie {
   }
 }
 
-export const db = new LifeOSDB();
+export let db = new LifeOSDB();
+
+/** Switch IndexedDB to an isolated store for the signed-in account. */
+export function switchUser(accountId: number | string) {
+  const dbName = `LifeOSDB_u${accountId}`;
+  db = new LifeOSDB(dbName);
+  return db;
+}
 
 // ─── Initializer ───────────────────────────────────────
-export async function initializeDb() {
+export async function initializeDb(profileName?: string) {
   // Removed dangerous localStorage-based wipe logic that could trigger if browser cleared localStorage but kept IndexedDB
 
   const settingsCount = await db.settings.count();
@@ -324,7 +331,7 @@ export async function initializeDb() {
       theme: 'midnight',
       accentColor: '#00F5FF',
       dashboardWidgets: ['trading-equity', 'active-projects', 'todos', 'productivity', 'recent-activity', 'integrations', 'spotify'],
-      name: 'User',
+      name: profileName || '',
       avatar: '',
       propFirmAccountsCount: 1,
     });

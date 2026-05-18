@@ -1,36 +1,94 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LifeOS
 
-## Getting Started
+A minimalist personal operating system for managing projects, habits, fitness, finance, study, and more. Built with Next.js, IndexedDB (Dexie), and optional PostgreSQL (Prisma) for cloud sync.
 
-First, run the development server:
+## Quick start
 
 ```bash
+cd LifeOS
+npm install
+cp .env.example .env
+# Edit .env: set DATABASE_URL and SESSION_SECRET for shared multi-user hosting
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://127.0.0.1:3000](http://127.0.0.1:3000) (use `127.0.0.1` instead of `localhost` for Spotify OAuth in development).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### First launch
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. **Create account** — name, email, and a **4-digit PIN**.
+2. **Sign in** — enter your PIN. If someone else uses the same PIN, you’ll pick your account by name and masked email.
+3. Add API keys under **Settings** (Gemini, GitHub, Spotify).
 
-## Learn More
+**Local-only mode** (no `DATABASE_URL`): accounts are stored in your browser. Fine for solo dev; use Postgres for production multi-user hosting.
 
-To learn more about Next.js, take a look at the following resources:
+## Cloud backup (optional)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+For multi-device sync, connect a PostgreSQL database:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Copy the example env file:
 
-## Deploy on Vercel
+   ```bash
+   cp .env.example .env
+   ```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+2. Set `DATABASE_URL` in `.env` to your Postgres connection string (Supabase, Neon, Railway, etc.).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+3. Run migrations:
+
+   ```bash
+   npx prisma migrate deploy
+   ```
+
+4. Restart the dev server.
+
+5. In the app: **Settings → Cloud backup & sync** → enable the toggle (or use **One-time cloud migration** to upload existing local data).
+
+Each self-hosted deployment is a single-user instance: one database per person/deployment. Data is not shared between different users on the same server unless you add your own authentication layer.
+
+## Environment variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes (hosted) | PostgreSQL URL for accounts & cloud sync |
+| `SESSION_SECRET` | Yes (hosted) | Signs login session cookies |
+| `APPLE_HEALTH_SECRET` | No | Secret for `/api/health-sync` (Apple Health shortcuts) |
+
+See [.env.example](.env.example) for details.
+
+## Integrations
+
+- **Gemini** — AI copilot (API key in Settings)
+- **GitHub** — activity & contributions (PAT + username in Settings)
+- **Spotify** — playback widget ([developer dashboard](https://developer.spotify.com/dashboard); redirect URI shown in Settings)
+- **Apple Health** — via iOS Shortcut to `/api/health-sync` (requires `DATABASE_URL` + `APPLE_HEALTH_SECRET`)
+
+Setup notes: [public/integrations-setup-guide.md](public/integrations-setup-guide.md)
+
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start development server |
+| `npm run build` | Production build |
+| `npm run start` | Start production server |
+| `npx prisma migrate deploy` | Apply database migrations |
+| `npx prisma studio` | Open Prisma database GUI |
+
+## Deploying
+
+Deploy to Vercel, Railway, or any Node host that supports Next.js:
+
+1. Set `DATABASE_URL` in the host environment (if using cloud sync).
+2. Run `prisma migrate deploy` as part of your build or release step.
+3. Users enable cloud backup in Settings after first login.
+
+## Architecture
+
+- **Client**: IndexedDB via Dexie (primary storage)
+- **Server**: Next.js API routes + Prisma → PostgreSQL (optional cloud layer)
+- **Sync**: Opt-in via `cloudBackupEnabled` in user settings; only runs when `DATABASE_URL` is configured
+
+## License
+
+Private / personal project — adjust as needed for your distribution.

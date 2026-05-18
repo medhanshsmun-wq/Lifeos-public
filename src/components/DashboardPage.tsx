@@ -563,7 +563,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-2">
             <div>
               <h1 className="text-2xl lg:text-3xl font-semibold text-white tracking-tight">
-                {greeting}, <span className="gradient-text">Medhansh</span>
+                {greeting}, <span className="gradient-text">{settings?.name?.trim() || 'there'}</span>
               </h1>
               <p className="text-xs text-[rgba(255,255,255,0.35)] font-mono mt-1">
                 {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}

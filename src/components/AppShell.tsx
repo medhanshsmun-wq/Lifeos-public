@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react';
 import Sidebar from '@/components/Sidebar';
 import { initializeDb, db } from '@/lib/db';
 import { serverDb } from '@/lib/serverDb';
+import { shouldSyncToCloud } from '@/lib/cloudSync';
+import { resolveServerSettingsId, toServerSettingsPayload } from '@/lib/settingsSync';
+import { useAuth } from '@/components/auth/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SpotifyProvider, useSpotify } from '@/lib/SpotifyContext';
 import ArcReactorLoader from '@/components/ArcReactorLoader';
@@ -67,6 +70,7 @@ function ThemeManager() {
 }
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error'>('synced');
 
@@ -107,35 +111,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           });
         }
 
-        // 3. Auto-sync settings to server SQLite
+        // 3. Auto-sync settings to cloud when enabled
         const settingsList = await db.settings.toArray();
         if (settingsList.length > 0) {
           const sObj = settingsList[0];
-          try {
-            await serverDb.settings.put({
-              id: 1, // Target settings row #1 in SQLite
-              geminiApiKey: sObj.geminiApiKey || '',
-              githubToken: sObj.githubToken || '',
-              githubUsername: sObj.githubUsername || '',
-              cloudBackupEnabled: !!sObj.cloudBackupEnabled,
-              theme: sObj.theme || 'dark',
-              accentColor: sObj.accentColor || '#00F5FF',
-              dashboardWidgets: sObj.dashboardWidgets || [],
-              name: sObj.name || 'User',
-              avatar: sObj.avatar || '',
-              propFirmAccountsCount: sObj.propFirmAccountsCount || 1,
-              propFirmName: sObj.propFirmName || null,
-              propFirmSize: sObj.propFirmSize || null,
-              spotifyClientId: sObj.spotifyClientId || null,
-              spotifyClientSecret: sObj.spotifyClientSecret || null,
-              spotifyAccessToken: sObj.spotifyAccessToken || null,
-              spotifyRefreshToken: sObj.spotifyRefreshToken || null,
-              spotifyExpiresAt: sObj.spotifyExpiresAt ? Number(sObj.spotifyExpiresAt) : null,
-              summerBreakMode: !!sObj.summerBreakMode,
-              appleHealthEnabled: !!sObj.appleHealthEnabled,
-            });
-          } catch (err) {
-            console.warn('Settings sync to SQLite failed', err);
+          if (await shouldSyncToCloud(!!sObj.cloudBackupEnabled)) {
+            try {
+              const serverId = await resolveServerSettingsId(user?.id);
+              await serverDb.settings.put(toServerSettingsPayload(sObj, serverId));
+            } catch (err) {
+              console.warn('Settings sync to cloud failed', err);
+            }
           }
         }
       } catch (e) {
@@ -149,6 +135,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      const localSettings = (await db.settings.toArray())[0];
+      const cloudEnabled = await shouldSyncToCloud(!!localSettings?.cloudBackupEnabled);
+      if (!cloudEnabled) {
+        if (isManual) {
+          console.warn('Cloud sync is disabled. Enable it in Settings after configuring DATABASE_URL on the server.');
+          setSyncStatus('error');
+          setTimeout(() => setSyncStatus('synced'), 3000);
+        }
+        return;
+      }
+
       // Throttle non-manual syncs to once every 30 seconds to conserve API limits
       const now = Date.now();
       if (!isManual && now - lastSyncTime < 30000) {
@@ -159,7 +156,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       syncInProgress = true;
       setSyncStatus('syncing');
       try {
-        console.log('🔄 Initiating full cloud sync from Supabase...');
+        console.log('🔄 Initiating full cloud sync...');
+        const serverSettingsId = await resolveServerSettingsId(user?.id);
         
         // 1. First sync Settings (with restore priority on blank devices)
         const serverSettingsList = await serverDb.settings.toArray();
@@ -168,10 +166,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         
         if (serverSettingsList && serverSettingsList.length > 0) {
           const sObj = serverSettingsList[0];
-          const localIsBlank = !activeSettings || (!activeSettings.geminiApiKey && !activeSettings.githubToken && activeSettings.name === 'User');
+          const localIsBlank = !activeSettings || (!activeSettings.geminiApiKey && !activeSettings.githubToken && !activeSettings.name?.trim());
           
           if (localIsBlank) {
-            console.log('📥 Restoring user credentials & settings from Supabase...');
+            console.log('📥 Restoring user credentials & settings from cloud...');
             const parsedSObj = {
               ...sObj,
               dashboardWidgets: typeof sObj.dashboardWidgets === 'string' ? JSON.parse(sObj.dashboardWidgets) : (sObj.dashboardWidgets || []),
@@ -188,20 +186,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             }
             activeSettings = parsedSObj;
           } else {
-            console.log('📤 Syncing local settings to Supabase...');
+            console.log('📤 Syncing local settings to cloud...');
             const { widgetSizes, ...settingsToSync } = activeSettings;
-            await serverDb.settings.put({
-              id: 1,
-              ...settingsToSync
-            });
+            await serverDb.settings.put(toServerSettingsPayload(settingsToSync, serverSettingsId));
           }
         } else if (activeSettings) {
-          console.log('📤 Uploading local settings to Supabase...');
+          console.log('📤 Uploading local settings to cloud...');
           const { widgetSizes, ...settingsToSync } = activeSettings;
-          await serverDb.settings.put({
-            id: 1,
-            ...settingsToSync
-          });
+          await serverDb.settings.put(toServerSettingsPayload(settingsToSync, serverSettingsId));
         }
 
         // 2. Define all tables to sync
@@ -505,46 +497,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       .then(async () => {
         if (!active) return;
 
-        // One-time emergency hard reset for local browser IndexedDB to start completely fresh from Supabase ground up
-        const isWiped = localStorage.getItem('lifeos_v3_hard_wiped');
-        if (!isWiped) {
-          console.log("🧹 Wiping local browser database for database clean reset...");
-          try {
-            await Promise.all([
-              db.projects.clear(),
-              db.finance.clear(),
-              db.fitness.clear(),
-              db.diet.clear(),
-              db.gym.clear(),
-              db.hobbies.clear(),
-              db.study.clear(),
-              db.subjects.clear(),
-              db.studyAssignments.clear(),
-              db.habits.clear(),
-              db.conversations.clear(),
-              db.weeklyReports.clear(),
-              db.timeline.clear(),
-              db.trades.clear(),
-              db.todos.clear(),
-              db.settings.clear()
-            ]);
-            localStorage.setItem('lifeos_v3_hard_wiped', 'true');
-            // Re-initialize settings row locally
-            await initializeDb();
-            console.log("✅ Local browser database hard wipe success!");
-          } catch (wipeErr) {
-            console.error("⚠️ Local database wipe failed:", wipeErr);
-          }
-        }
-
         autoRegisterNewDay();
-        
-        // Wait for cloud sync to finish so the user sees all their data instantly on first boot!
-        // Timeout fallback of 3.5 seconds to guarantee page loads even on offline/poor networks.
-        await Promise.race([
-          syncAllFromCloud(),
-          new Promise((resolve) => setTimeout(resolve, 3500))
-        ]);
+
+        const settingsForSync = (await db.settings.toArray())[0];
+        const shouldRunCloudSync = await shouldSyncToCloud(!!settingsForSync?.cloudBackupEnabled);
+
+        if (shouldRunCloudSync) {
+          // Wait for cloud sync so the user sees restored data on first boot
+          await Promise.race([
+            syncAllFromCloud(),
+            new Promise((resolve) => setTimeout(resolve, 3500))
+          ]);
+        }
         
         setLoading(false);
       });
@@ -553,8 +517,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       if (active) autoRegisterNewDay();
     }, 30000);
 
-    const handleFocusSync = () => {
-      if (active) {
+    const handleFocusSync = async () => {
+      if (!active) return;
+      const s = (await db.settings.toArray())[0];
+      if (await shouldSyncToCloud(!!s?.cloudBackupEnabled)) {
         console.log('🔄 Window focused, triggering automatic cloud sync...');
         syncAllFromCloud();
       }
@@ -570,8 +536,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     };
     window.addEventListener('lifeos-trigger-sync', handleTriggerSync);
 
-    const syncIntervalId = setInterval(() => {
-      if (active) {
+    const syncIntervalId = setInterval(async () => {
+      if (!active) return;
+      const s = (await db.settings.toArray())[0];
+      if (await shouldSyncToCloud(!!s?.cloudBackupEnabled)) {
         console.log('🕒 Periodic background cloud sync...');
         syncAllFromCloud();
       }

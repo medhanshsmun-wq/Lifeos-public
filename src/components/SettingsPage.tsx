@@ -4,18 +4,26 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { db, type UserSettings } from '@/lib/db';
 import { serverDb } from '@/lib/serverDb';
+import { isCloudAvailable, resetCloudAvailabilityCache } from '@/lib/cloudSync';
+import { useAuth } from '@/components/auth/AuthContext';
 import { Settings as SettingsIcon, Key, GitBranch, Shield, Palette, User, Save, Check, Database, ArrowRight, Loader2 } from 'lucide-react';
 import SystemModal from './SystemModal';
 
 const fi = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0 } };
 
 export default function SettingsPage() {
+  const { user } = useAuth();
   const [settings, setSettings] = useState<UserSettings>({ geminiApiKey: '', githubToken: '', githubUsername: '', cloudBackupEnabled: false, theme: 'dark', accentColor: '#00F5FF', dashboardWidgets: ['todos', 'productivity', 'habits', 'ai-insights', 'recent-activity', 'integrations'], name: '', avatar: '', propFirmAccountsCount: 1, spotifyClientId: '', spotifyClientSecret: '' });
   const [saved, setSaved] = useState(false);
   const [migrating, setMigrating] = useState(false);
   const [migrationStatus, setMigrationStatus] = useState<string | null>(null);
   const [modal, setModal] = useState<{ isOpen: boolean, type: 'alert' | 'confirm' | 'prompt', title: string, message: string, defaultValue?: string, onConfirm: (v?: string) => void } | null>(null);
   const [spotifyRedirectUri, setSpotifyRedirectUri] = useState('http://127.0.0.1:3000/api/auth/callback/spotify');
+  const [cloudAvailable, setCloudAvailable] = useState(false);
+
+  useEffect(() => {
+    isCloudAvailable().then(setCloudAvailable);
+  }, []);
 
   useEffect(() => {
     db.settings.toArray().then(s => { 
@@ -40,6 +48,7 @@ export default function SettingsPage() {
 
   const save = async () => {
     await db.settings.put(settings);
+    window.dispatchEvent(new CustomEvent('lifeos-trigger-sync', { detail: { isManual: false } }));
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -101,10 +110,19 @@ export default function SettingsPage() {
             }
           }
           
-          if (errors.length > 0) {
-            setMigrationStatus(`Migration done with ${errors.length} warnings. ${totalMigrated} items migrated.\n\nWarnings:\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? `\n...and ${errors.length - 5} more` : ''}`);
+          const updatedSettings = { ...settings, cloudBackupEnabled: true };
+          if (settings.id) {
+            await db.settings.update(settings.id, { cloudBackupEnabled: true });
           } else {
-            setMigrationStatus(`Migration complete! ${totalMigrated} items migrated. Refreshing page...`);
+            await db.settings.put(updatedSettings);
+          }
+          setSettings(updatedSettings);
+          resetCloudAvailabilityCache();
+
+          if (errors.length > 0) {
+            setMigrationStatus(`Migration done with ${errors.length} warnings. ${totalMigrated} items migrated. Cloud backup is now enabled.\n\nWarnings:\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? `\n...and ${errors.length - 5} more` : ''}`);
+          } else {
+            setMigrationStatus(`Migration complete! ${totalMigrated} items migrated. Cloud backup enabled. Refreshing page...`);
             setTimeout(() => window.location.reload(), 2000);
           }
         } catch (e: any) {
@@ -130,6 +148,7 @@ export default function SettingsPage() {
           <h3 className="text-sm font-semibold flex items-center gap-2"><User className="w-4 h-4 text-[var(--accent-cyan)]" /> Profile</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div><label className="text-xs font-medium text-[var(--text-secondary)] mb-1 block">Name</label><input value={settings.name} onChange={e => setSettings({...settings, name: e.target.value})} className="w-full px-3 py-2.5 rounded-xl bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-sm outline-none focus:border-[var(--accent-cyan)]" /></div>
+            <div><label className="text-xs font-medium text-[var(--text-secondary)] mb-1 block">Email</label><input value={user?.email || ''} readOnly className="w-full px-3 py-2.5 rounded-xl bg-[var(--bg-hover)]/50 border border-[var(--border-subtle)] text-sm text-[var(--text-tertiary)] cursor-not-allowed" /></div>
             <div>
               <label className="text-xs font-medium text-[var(--text-secondary)] mb-1 block">Prop Firm Accounts</label>
               <input 
@@ -248,22 +267,47 @@ export default function SettingsPage() {
           </div>
         </motion.div>
 
+        {/* Cloud backup */}
+        <motion.div variants={fi} className="glass-card p-5 space-y-4">
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <Database className="w-4 h-4 text-[var(--accent-cyan)]" />
+            Cloud backup &amp; sync
+          </h3>
+          <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
+            By default, LifeOS stores data in your browser (IndexedDB). Enable cloud backup to sync across devices using a PostgreSQL database configured via <code className="text-[var(--accent-cyan)]">DATABASE_URL</code> on the server.
+          </p>
+          {!cloudAvailable && (
+            <p className="text-[11px] text-amber-400/90 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2">
+              Cloud database is not configured on this server. Add <code className="font-mono">DATABASE_URL</code> to your <code className="font-mono">.env</code> file, run migrations, then restart the app.
+            </p>
+          )}
+          <label className="flex items-center justify-between gap-4 cursor-pointer">
+            <span className="text-xs text-[var(--text-secondary)]">Enable cloud backup &amp; multi-device sync</span>
+            <input
+              type="checkbox"
+              checked={!!settings.cloudBackupEnabled}
+              disabled={!cloudAvailable}
+              onChange={e => setSettings({ ...settings, cloudBackupEnabled: e.target.checked })}
+              className="w-4 h-4 accent-[var(--accent-cyan)]"
+            />
+          </label>
+        </motion.div>
+
         {/* Backend Migration */}
         <motion.div variants={fi} className="glass-card p-5 border border-amber-500/30 bg-amber-500/5">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-2">
               <h3 className="text-sm font-semibold flex items-center gap-2 text-amber-500">
                 <Database className="w-4 h-4" /> 
-                Backend Migration
+                One-time cloud migration
               </h3>
               <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
-                You are currently using browser-based storage (IndexedDB). Click below to migrate your data to the 
-                <strong> proper server-side SQLite database</strong> for permanent persistence and multi-device readiness.
+                Push all local browser data to your configured PostgreSQL database. Enables cloud backup and is useful when setting up a new device or server.
               </p>
             </div>
             <button 
               onClick={migrateToBackend}
-              disabled={migrating}
+              disabled={migrating || !cloudAvailable}
               className="shrink-0 px-4 py-2 rounded-xl bg-amber-500 text-black text-xs font-bold hover:bg-amber-400 transition-all flex items-center gap-2 disabled:opacity-50"
             >
               {migrating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowRight className="w-3.5 h-3.5" />}
