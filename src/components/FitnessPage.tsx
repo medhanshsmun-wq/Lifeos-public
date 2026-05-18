@@ -6,6 +6,7 @@ import { db, type FitnessEntry, type DietEntry, type GymEntry } from '@/lib/db';
 import { Dumbbell, Footprints, Flame, Timer, TrendingUp, Plus, X, Target, Utensils, Activity, Brain } from 'lucide-react';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 import SystemModal from './SystemModal';
+import { fetchGeminiWithFallback } from '@/lib/gemini';
 
 const anim = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
 const fi = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0 } };
@@ -297,9 +298,8 @@ export default function FitnessPage() {
                     const key = settings[0]?.geminiApiKey;
                     if (!key) { setGymSuggestion('API Key missing. Add in Settings.'); return; }
                     try {
-                      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${key}`, {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: `Analyze my recent gym logs and give a short 3-sentence suggestion for progressive overload for next week: ${JSON.stringify(gym.slice(-7))}` }] }] })
+                      const res = await fetchGeminiWithFallback(key, {
+                        contents: [{ role: 'user', parts: [{ text: `Analyze my recent gym logs and give a short 3-sentence suggestion for progressive overload for next week: ${JSON.stringify(gym.slice(-7))}` }] }]
                       });
                       const data = await res.json();
                       setGymSuggestion(data.candidates?.[0]?.content?.parts?.[0]?.text || data?.error?.message || 'No suggestion.');
@@ -388,9 +388,8 @@ function DietForm({
         const key = settings[0]?.geminiApiKey;
         if (key) {
           const prompt = `Provide the estimated macronutrients for this food: "${food}". Return ONLY a strict JSON object with no markdown formatting: {"calories": number, "protein": number, "carbs": number, "fat": number}`;
-          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${key}`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }] })
+          const res = await fetchGeminiWithFallback(key, {
+            contents: [{ role: 'user', parts: [{ text: prompt }] }]
           });
           const data = await res.json();
           if (data?.error?.message) {

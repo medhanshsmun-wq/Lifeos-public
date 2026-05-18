@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import SystemModal from './SystemModal';
 import ArcReactorLoader from './ArcReactorLoader';
+import { fetchGeminiWithFallback } from '@/lib/gemini';
 
 const BOOT_LINES = [
   '> J.A.R.V.I.S. Neural Core v3.0',
@@ -184,17 +185,14 @@ export default function CopilotPage() {
 
           if (firstUserMsg && apiKey) {
             try {
-              const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`, {
-                method: 'POST',
-                body: JSON.stringify({
-                  contents: [{
-                    role: 'user',
-                    parts: [{
-                      text: `Generate a premium, concise 2-3 word chat session title. The chat is discussing: "${firstUserMsg}" in the context of the linked project "${proj.title}". Avoid generic names. Return ONLY the 2-3 words without quotes or formatting.`
-                    }]
-                  }],
-                  generationConfig: { temperature: 0.7, maxOutputTokens: 15 }
-                })
+              const r = await fetchGeminiWithFallback(apiKey, {
+                contents: [{
+                  role: 'user',
+                  parts: [{
+                    text: `Generate a premium, concise 2-3 word chat session title. The chat is discussing: "${firstUserMsg}" in the context of the linked project "${proj.title}". Avoid generic names. Return ONLY the 2-3 words without quotes or formatting.`
+                  }]
+                }],
+                generationConfig: { temperature: 0.7, maxOutputTokens: 15 }
               });
               if (r.ok) {
                 const d = await r.json();
@@ -454,7 +452,7 @@ Always take the initiative. If the user tells you about an activity they complet
       ];
       const contents = cleanAndAlternateContents(rawTurns);
 
-      const body = JSON.stringify({
+      const payload = {
         contents,
         systemInstruction: {
           parts: [{ text: context }]
@@ -749,10 +747,10 @@ Always take the initiative. If the user tells you about an activity they complet
           }
         ],
         generationConfig: { temperature: 0.7, maxOutputTokens: 4096 },
-      });
+      };
       setAttachments([]);
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+      const response = await fetchGeminiWithFallback(apiKey, payload);
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
@@ -997,23 +995,22 @@ Always take the initiative. If the user tells you about an activity they complet
         triggerBackgroundSync();
 
         try {
-          const parsedBody = JSON.parse(body);
           const modelContent = data?.candidates?.[0]?.content;
           const rawFollowUpTurns = [
-            ...parsedBody.contents,
+            ...payload.contents,
             modelContent || { role: 'model', parts: functionCalls.map((c: any) => ({ functionCall: c.functionCall })) },
             { role: 'user', parts: functionResponses }
           ];
           const followUpContents = cleanAndAlternateContents(rawFollowUpTurns);
 
-          const followUpBody = JSON.stringify({
+          const followUpPayload = {
             contents: followUpContents,
-            systemInstruction: parsedBody.systemInstruction,
-            tools: parsedBody.tools,
-            generationConfig: parsedBody.generationConfig
-          });
+            systemInstruction: payload.systemInstruction,
+            tools: payload.tools,
+            generationConfig: payload.generationConfig
+          };
 
-          const res2 = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: followUpBody });
+          const res2 = await fetchGeminiWithFallback(apiKey, followUpPayload);
           if (!res2.ok) {
             const errData2 = await res2.json().catch(() => ({}));
             const err2 = errData2?.error?.message || `⚠️ Tool Execution Follow-up Error ${res2.status}`;
@@ -1057,12 +1054,9 @@ Avoid generic titles like "New Session" or "Project Discussion".
 Be specific, professional, and descriptive (e.g., "Drone Battery Setup", "React Grid Drag-Drop", "Prisma Milestone Sync"). 
 Do not include any quotes, asterisks, markdown, prefix, or trailing punctuation. Output ONLY the raw 2-3 words.`;
 
-              const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`, {
-                method: 'POST', 
-                body: JSON.stringify({ 
-                  contents: [{ role: 'user', parts: [{ text: promptText }] }], 
-                  generationConfig: { temperature: 0.7, maxOutputTokens: 15 } 
-                })
+              const r = await fetchGeminiWithFallback(apiKey, {
+                contents: [{ role: 'user', parts: [{ text: promptText }] }],
+                generationConfig: { temperature: 0.7, maxOutputTokens: 15 }
               });
               if (r.ok) { 
                 const d = await r.json(); 
