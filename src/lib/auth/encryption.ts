@@ -11,9 +11,13 @@ export function encrypt(text: string): string {
   if (!text || typeof text !== 'string') return text || '';
   
   try {
+    const secret = process.env.ENCRYPTION_SECRET;
+    if (!secret && process.env.NODE_ENV === 'production') {
+      throw new Error('ENCRYPTION_SECRET must be set in production');
+    }
     const key = crypto
       .createHash('sha256')
-      .update(process.env.ENCRYPTION_SECRET || 'lifeos-dev-default-secret-key-change-me')
+      .update(secret || 'dev-default')
       .digest();
       
     const iv = crypto.randomBytes(IV_LENGTH);
@@ -45,9 +49,13 @@ export function decrypt(cipherText: string): string {
   
   try {
     const [ivHex, encryptedHex, tagHex] = parts;
+    const secret = process.env.ENCRYPTION_SECRET;
+    if (!secret && process.env.NODE_ENV === 'production') {
+      throw new Error('ENCRYPTION_SECRET must be set in production');
+    }
     const key = crypto
       .createHash('sha256')
-      .update(process.env.ENCRYPTION_SECRET || 'lifeos-dev-default-secret-key-change-me')
+      .update(secret || 'dev-default')
       .digest();
       
     const iv = Buffer.from(ivHex, 'hex');

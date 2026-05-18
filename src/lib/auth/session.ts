@@ -15,7 +15,7 @@ function getSecret(): string {
     if (process.env.NODE_ENV === 'production') {
       throw new Error('SESSION_SECRET must be set in production');
     }
-    return 'lifeos-dev-session-secret-change-me';
+    return 'dev-session';
   }
   return secret;
 }
