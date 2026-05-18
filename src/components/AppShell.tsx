@@ -138,32 +138,152 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       }
     };
 
-    const syncHealth = async () => {
+    const syncAllFromCloud = async () => {
       try {
-        const serverFitness = await serverDb.fitness.toArray();
-        const localFitness = await db.fitness.toArray();
-        for (const sf of serverFitness) {
-          const dStr = new Date(sf.date).toDateString();
-          const existing = localFitness.find(lf => new Date(lf.date).toDateString() === dStr);
-          if (existing) {
-            if (sf.steps > existing.steps || sf.activeMinutes > existing.activeMinutes) {
-              await db.fitness.update(existing.id!, {
-                steps: Math.max(existing.steps, sf.steps),
-                distance: Math.max(existing.distance, sf.distance),
-                caloriesBurned: Math.max(existing.caloriesBurned, sf.caloriesBurned),
-                activeMinutes: Math.max(existing.activeMinutes, sf.activeMinutes),
-                date: new Date(sf.date)
-              });
+        console.log('🔄 Initiating full cloud sync from Supabase...');
+        
+        // 1. First sync Settings (with restore priority on blank devices)
+        const serverSettingsList = await serverDb.settings.toArray();
+        const localSettingsList = await db.settings.toArray();
+        let activeSettings = localSettingsList[0];
+        
+        if (serverSettingsList && serverSettingsList.length > 0) {
+          const sObj = serverSettingsList[0];
+          const localIsBlank = !activeSettings || (!activeSettings.geminiApiKey && !activeSettings.githubToken && activeSettings.name === 'User');
+          
+          if (localIsBlank) {
+            console.log('📥 Restoring user credentials & settings from Supabase...');
+            const parsedSObj = {
+              ...sObj,
+              dashboardWidgets: typeof sObj.dashboardWidgets === 'string' ? JSON.parse(sObj.dashboardWidgets) : (sObj.dashboardWidgets || []),
+              spotifyExpiresAt: sObj.spotifyExpiresAt ? Number(sObj.spotifyExpiresAt) : undefined,
+              cloudBackupEnabled: !!sObj.cloudBackupEnabled,
+              summerBreakMode: !!sObj.summerBreakMode,
+              appleHealthEnabled: !!sObj.appleHealthEnabled
+            };
+            if (activeSettings) {
+              await db.settings.update(activeSettings.id!, parsedSObj);
+            } else {
+              await db.settings.add(parsedSObj);
             }
+            activeSettings = parsedSObj;
           } else {
-            await db.fitness.add({
-              steps: sf.steps, distance: sf.distance, caloriesBurned: sf.caloriesBurned,
-              activeMinutes: sf.activeMinutes, date: new Date(sf.date), notes: sf.notes || 'Auto-synced'
+            console.log('📤 Syncing local settings to Supabase...');
+            await serverDb.settings.put({
+              id: 1,
+              ...activeSettings
             });
+          }
+        } else if (activeSettings) {
+          console.log('📤 Uploading local settings to Supabase...');
+          await serverDb.settings.put({
+            id: 1,
+            ...activeSettings
+          });
+        }
+
+        // 2. Define all tables to sync
+        const tables = [
+          { name: 'projects', server: serverDb.projects },
+          { name: 'finance', server: serverDb.finance },
+          { name: 'fitness', server: serverDb.fitness },
+          { name: 'diet', server: serverDb.diet },
+          { name: 'gym', server: serverDb.gym },
+          { name: 'hobbies', server: serverDb.hobbies },
+          { name: 'subjects', server: serverDb.subjects },
+          { name: 'studyAssignments', server: serverDb.studyAssignments },
+          { name: 'study', server: serverDb.study },
+          { name: 'habits', server: serverDb.habits },
+          { name: 'conversations', server: serverDb.conversations },
+          { name: 'weeklyReports', server: serverDb.weeklyReports },
+          { name: 'timeline', server: serverDb.timeline },
+          { name: 'trades', server: serverDb.trades }
+        ];
+
+        for (const table of tables) {
+          try {
+            const serverItems = await table.server.toArray();
+            // @ts-ignore
+            const localItems = await db[table.name].toArray();
+
+            // A. Down-sync (Server -> Local)
+            if (serverItems && serverItems.length > 0) {
+              for (const item of serverItems) {
+                const formattedItem = { ...item };
+                
+                // Convert date fields
+                for (const key of Object.keys(formattedItem)) {
+                  const val = formattedItem[key];
+                  if (typeof val === 'string' && (
+                    key === 'date' || 
+                    key === 'dueDate' || 
+                    key === 'createdAt' || 
+                    key === 'updatedAt' || 
+                    key === 'entryTime' || 
+                    key === 'exitTime' || 
+                    key === 'timestamp' || 
+                    key === 'weekStart' || 
+                    key === 'weekEnd'
+                  )) {
+                    formattedItem[key] = new Date(val);
+                  }
+                }
+
+                // Handle project milestones array
+                if (table.name === 'projects' && formattedItem.milestones) {
+                  formattedItem.milestones = formattedItem.milestones.map((m: any) => ({
+                    ...m,
+                    createdAt: m.createdAt ? new Date(m.createdAt) : new Date()
+                  }));
+                }
+
+                // Handle conversation messages array
+                if (table.name === 'conversations' && formattedItem.messages) {
+                  formattedItem.messages = formattedItem.messages.map((m: any) => ({
+                    ...m,
+                    timestamp: m.timestamp ? new Date(m.timestamp) : new Date()
+                  }));
+                }
+
+                // Check if it exists locally
+                // @ts-ignore
+                const localMatch = localItems.find(li => li.id === formattedItem.id);
+                if (!localMatch) {
+                  // @ts-ignore
+                  await db[table.name].add(formattedItem);
+                } else {
+                  // If it has changed, update it
+                  const isDifferent = JSON.stringify(localMatch) !== JSON.stringify(formattedItem);
+                  if (isDifferent) {
+                    // @ts-ignore
+                    await db[table.name].put(formattedItem);
+                  }
+                }
+              }
+            }
+
+            // B. Up-sync (Local -> Server)
+            if (localItems && localItems.length > 0) {
+              for (const localItem of localItems) {
+                // Check if it exists on the server
+                const serverMatch = serverItems.find((si: any) => si.id === localItem.id);
+                if (!serverMatch) {
+                  try {
+                    await table.server.add(localItem);
+                  } catch (addErr) {
+                    console.warn(`Up-sync failed for ${table.name} item ID ${localItem.id}:`, addErr);
+                  }
+                }
+              }
+            }
+
+            console.log(`✅ Table "${table.name}" bidirectional sync complete.`);
+          } catch (tableErr) {
+            console.warn(`Sync failed for table ${table.name}:`, tableErr);
           }
         }
       } catch (e) {
-        console.warn('Health sync failed', e);
+        console.error('Error during full bidirectional sync:', e);
       }
     };
 
@@ -175,7 +295,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       })
       .then(() => {
         if (!active) return;
-        return syncHealth();
+        return syncAllFromCloud();
       })
       .then(() => {
         if (!active) return;
