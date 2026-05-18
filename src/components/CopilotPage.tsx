@@ -9,7 +9,7 @@ import {
   Loader2, Plus, X, Edit3, Paperclip,
   Image as ImageIcon, FileText, Minus, Square,
   MessageSquare, Folder, ChevronDown, Zap, Bot, User,
-  Check,
+  Check, Menu,
 } from 'lucide-react';
 import SystemModal from './SystemModal';
 import ArcReactorLoader from './ArcReactorLoader';
@@ -40,6 +40,7 @@ export default function CopilotPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const sendingRef = useRef(false);
   const searchParams = useSearchParams();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Boot
   useEffect(() => {
@@ -968,9 +969,60 @@ Always take the initiative. If the user tells you about an activity they complet
   }, [input, loading, messages, getContext, conversationId, attachments]);
 
   return (
-    <div className="flex flex-1 h-full overflow-hidden w-full">
-      {/* Session sidebar */}
-      <div className="w-[220px] flex-shrink-0 flex flex-col border-r border-[var(--border)] bg-[var(--bg-1)]/50 backdrop-blur-sm">
+    <div className="flex flex-1 h-full overflow-hidden w-full relative">
+      {/* Mobile Sidebar overlay backdrop */}
+      <AnimatePresence>
+        {sidebarOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSidebarOpen(false)}
+              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs md:hidden"
+            />
+            <motion.div
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+              className="fixed inset-y-0 left-0 z-50 w-[260px] bg-[var(--bg-1)] border-r border-[var(--border)] flex flex-col md:hidden"
+            >
+              <div className="p-3.5 border-b border-[var(--border)] flex items-center justify-between">
+                <span className="font-mono text-[var(--text-2)] text-[10px] uppercase tracking-wider font-semibold">Neural Links</span>
+                <button onClick={() => setSidebarOpen(false)} className="p-1 rounded hover:bg-white/5 text-[var(--text-3)] hover:text-white transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="p-3 border-b border-[var(--border)]">
+                <button onClick={() => { startNewChat(); setSidebarOpen(false); }} className="w-full py-2 px-3 rounded-xl bg-[var(--accent)]/10 border border-[var(--accent)]/20 text-[var(--accent)] text-xs font-semibold flex items-center justify-center gap-2 hover:bg-[var(--accent)]/15 transition-all">
+                  <Plus className="w-3.5 h-3.5" /> New Session
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto py-1.5">
+                {allConversations.map(conv => (
+                  <div key={conv.id} onClick={() => { switchChat(conv.id!); setSidebarOpen(false); }}
+                    className={`group flex items-center justify-between px-3.5 py-2.5 mx-2 rounded-lg cursor-pointer text-[12px] transition-all ${conversationId === conv.id ? 'bg-white/[.06] text-[var(--text-0)]' : 'text-[var(--text-2)] hover:bg-white/[.03] hover:text-[var(--text-1)]'
+                      }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <MessageSquare className="w-3.5 h-3.5 flex-shrink-0" style={conversationId === conv.id ? { color: 'var(--accent)' } : {}} />
+                      <span className="truncate">{conv.title}</span>
+                    </div>
+                    <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
+                      <button onClick={e => { e.stopPropagation(); renameChat(conv.id!); }} className="p-1 hover:text-[var(--accent)]"><Edit3 className="w-3 h-3" /></button>
+                      <button onClick={e => { e.stopPropagation(); deleteChat(conv.id!); }} className="p-1 hover:text-[var(--red)]"><Trash2 className="w-3 h-3" /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Session sidebar (desktop) */}
+      <div className="hidden md:flex w-[220px] flex-shrink-0 flex flex-col border-r border-[var(--border)] bg-[var(--bg-1)]/50 backdrop-blur-sm">
         <div className="p-3 border-b border-[var(--border)]">
           <button onClick={startNewChat} className="w-full py-2 px-3 rounded-xl bg-[var(--accent)]/10 border border-[var(--accent)]/20 text-[var(--accent)] text-xs font-semibold flex items-center justify-center gap-2 hover:bg-[var(--accent)]/15 transition-all">
             <Plus className="w-3.5 h-3.5" /> New Session
@@ -996,18 +1048,28 @@ Always take the initiative. If the user tells you about an activity they complet
       </div>
 
       {/* Main Chat */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 bg-[var(--bg-0)]">
         {/* Header */}
-        <div className="flex items-center justify-between h-12 px-4 border-b border-[var(--border)] bg-[var(--bg-1)]/30 backdrop-blur-xl flex-shrink-0">
-          <div className="flex items-center gap-2 text-[11px]">
-            <Zap className="w-3.5 h-3.5 text-[var(--accent)]" />
-            <span className="font-mono text-[var(--text-2)]">J.A.R.V.I.S.</span>
-            <span className="text-[var(--text-3)]">—</span>
-            <span className="text-[var(--text-2)]">{allConversations.find(c => c.id === conversationId)?.title || 'Neural Session'}</span>
+        <div className="flex items-center justify-between h-14 px-4 border-b border-[var(--border)] bg-[var(--bg-1)]/30 backdrop-blur-xl flex-shrink-0">
+          <div className="flex items-center gap-3">
+            {/* Mobile Menu Toggle button */}
+            <button onClick={() => setSidebarOpen(true)} className="p-1.5 rounded-lg border border-[var(--border)] hover:bg-white/5 md:hidden text-[var(--text-2)] hover:text-white transition-all">
+              <Menu className="w-4 h-4" />
+            </button>
+            <div className="flex items-center gap-2 text-[11px] sm:text-xs">
+              <Zap className="w-3.5 h-3.5 text-[var(--accent)]" />
+              <span className="font-mono text-[var(--text-2)] hidden sm:inline">J.A.R.V.I.S.</span>
+              <span className="text-[var(--text-3)] hidden sm:inline">—</span>
+              <span className="text-[var(--text-2)] font-semibold truncate max-w-[110px] sm:max-w-none">{allConversations.find(c => c.id === conversationId)?.title || 'Neural Session'}</span>
+            </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Mobile new session shortcut */}
+            <button onClick={startNewChat} className="p-1.5 rounded-lg border border-[var(--border)] hover:bg-white/5 md:hidden text-[var(--text-2)] hover:text-white transition-all" title="New Session">
+              <Plus className="w-4 h-4" />
+            </button>
             <select value={linkedProjectId || ''} onChange={e => linkProject(e.target.value ? Number(e.target.value) : undefined)}
-              className="bg-transparent text-[10px] text-[var(--text-2)] outline-none cursor-pointer font-mono"
+              className="bg-transparent text-[10px] text-[var(--text-2)] outline-none cursor-pointer font-mono border border-[var(--border)] rounded px-1.5 py-0.5"
             >
               <option value="" className="bg-[var(--bg-1)]">No Project</option>
               {projects.map(p => <option key={p.id} value={p.id} className="bg-[var(--bg-1)]">{p.title}</option>)}
@@ -1016,7 +1078,7 @@ Always take the initiative. If the user tells you about an activity they complet
         </div>
 
         {/* Messages */}
-        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 md:px-6 py-6 space-y-4">
           {/* Boot */}
           {bootLines.filter(Boolean).map((line, i) => (
             <motion.div key={`boot-${i}`} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.15 }}
@@ -1072,7 +1134,7 @@ Always take the initiative. If the user tells you about an activity they complet
                 </div>
               )}
 
-              <div className={`max-w-[75%] ${msg.role === 'user'
+              <div className={`max-w-[85%] md:max-w-[75%] break-words overflow-hidden ${msg.role === 'user'
                 ? 'bg-[var(--accent)]/10 border border-[var(--accent)]/15 rounded-2xl rounded-br-md px-4 py-2.5'
                 : 'bg-white/[.03] border border-[var(--border)] rounded-2xl rounded-bl-md px-4 py-3'
                 }`}>
