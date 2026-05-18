@@ -468,6 +468,39 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     initializeDb()
       .then(async () => {
         if (!active) return;
+
+        // One-time emergency hard reset for local browser IndexedDB to start completely fresh from Supabase ground up
+        const isWiped = localStorage.getItem('lifeos_v3_hard_wiped');
+        if (!isWiped) {
+          console.log("🧹 Wiping local browser database for database clean reset...");
+          try {
+            await Promise.all([
+              db.projects.clear(),
+              db.finance.clear(),
+              db.fitness.clear(),
+              db.diet.clear(),
+              db.gym.clear(),
+              db.hobbies.clear(),
+              db.study.clear(),
+              db.subjects.clear(),
+              db.studyAssignments.clear(),
+              db.habits.clear(),
+              db.conversations.clear(),
+              db.weeklyReports.clear(),
+              db.timeline.clear(),
+              db.trades.clear(),
+              db.todos.clear(),
+              db.settings.clear()
+            ]);
+            localStorage.setItem('lifeos_v3_hard_wiped', 'true');
+            // Re-initialize settings row locally
+            await initializeDb();
+            console.log("✅ Local browser database hard wipe success!");
+          } catch (wipeErr) {
+            console.error("⚠️ Local database wipe failed:", wipeErr);
+          }
+        }
+
         autoRegisterNewDay();
         
         // Wait for cloud sync to finish so the user sees all their data instantly on first boot!
