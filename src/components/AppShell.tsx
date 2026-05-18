@@ -155,6 +155,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       syncInProgress = true;
       setSyncStatus('syncing');
+      let success = true;
       try {
         console.log('🔄 Initiating full cloud sync...');
         const serverSettingsId = await resolveServerSettingsId(user?.id);
@@ -480,15 +481,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             console.log(`✅ Table "${table.name}" bidirectional sync complete.`);
           } catch (tableErr) {
             console.warn(`Sync failed for table ${table.name}:`, tableErr);
+            success = false;
           }
         }));
       } catch (e) {
         console.error('Error during full bidirectional sync:', e);
-        setSyncStatus('error');
+        success = false;
       } finally {
         lastSyncTime = Date.now();
         syncInProgress = false;
-        setSyncStatus(prev => prev === 'error' ? 'error' : 'synced');
+        setSyncStatus(success ? 'synced' : 'error');
       }
     };
 

@@ -54,8 +54,13 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       })
-      .catch(() => {
-        return caches.match(event.request);
+      .catch(async (err) => {
+        const cachedResponse = await caches.match(event.request);
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+        // Let the fetch fail naturally instead of returning undefined (which causes TypeError)
+        throw err;
       })
   );
 });
