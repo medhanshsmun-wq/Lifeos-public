@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db, type HabitEntry } from '@/lib/db';
-import { Flame, Plus, Check, X, Sparkles, TrendingUp, Award, Calendar, BarChart2, Trash2 } from 'lucide-react';
+import { Flame, Plus, Check, X, Sparkles, TrendingUp, Award, Calendar, BarChart2, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import SystemModal from './SystemModal';
 
 const fi = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0 } };
@@ -12,8 +12,8 @@ export default function HabitsPage() {
   const [entries, setEntries] = useState<HabitEntry[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newHabitName, setNewHabitName] = useState('');
-  const [newHabitCategory, setNewHabitCategory] = useState('Productivity');
   const [modal, setModal] = useState<any>(null);
+  const [viewMode, setViewMode] = useState<'weekly' | 'calendar'>('weekly');
 
   const load = async () => {
     const data = await db.habits.toArray();
@@ -41,25 +41,25 @@ export default function HabitsPage() {
     return dates;
   }, []);
 
-  // Unique habits list based on all-time log entries
+  // Unique habits list based on all-time log entries (using completed-only tracking + master record)
   const habitsList = useMemo(() => {
     const uniqueNames = Array.from(new Set(entries.map(e => e.habitName)));
     return uniqueNames.map(name => {
       const habitEntries = entries.filter(e => e.habitName === name);
+      // Filter out the master definition record (year 1970) for daily calculations
+      const activeEntries = habitEntries.filter(e => new Date(e.date).getFullYear() !== 1970);
       
       // Calculate active streak
       let streak = 0;
-      const sortedEntries = [...habitEntries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      const sortedEntries = [...activeEntries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       
       const todayStr = formatDateStr(new Date());
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
       const yesterdayStr = formatDateStr(yesterday);
       
-      let checkDate = new Date();
       let hasStreakBreak = false;
       
-      // If no entries or neither today nor yesterday is completed, streak is 0
       const hasToday = sortedEntries.some(e => formatDateStr(e.date) === todayStr && e.completed);
       const hasYesterday = sortedEntries.some(e => formatDateStr(e.date) === yesterdayStr && e.completed);
       
@@ -80,16 +80,16 @@ export default function HabitsPage() {
       // Calculate total completion rate (last 30 days)
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const recentEntries = habitEntries.filter(e => new Date(e.date).getTime() >= thirtyDaysAgo.getTime());
-      const completedRecent = recentEntries.filter(e => e.completed).length;
-      const completionRate = recentEntries.length > 0 ? Math.round((completedRecent / Math.max(1, recentEntries.length)) * 100) : 0;
+      const recentCompleted = activeEntries.filter(e => new Date(e.date).getTime() >= thirtyDaysAgo.getTime() && e.completed).length;
+      const completionRate = Math.round((recentCompleted / 30) * 100);
 
       return {
         name: name,
         entries: habitEntries,
+        activeEntries,
         streak,
         completionRate,
-        totalCompleted: habitEntries.filter(e => e.completed).length
+        totalCompleted: activeEntries.filter(e => e.completed).length
       };
     });
   }, [entries]);
@@ -97,11 +97,13 @@ export default function HabitsPage() {
   // Toggle completion for a specific date
   const toggleHabit = async (habitName: string, date: Date) => {
     const dateStr = formatDateStr(date);
-    const existing = entries.find(e => e.habitName === habitName && formatDateStr(e.date) === dateStr);
+    const existing = entries.find(e => e.habitName === habitName && formatDateStr(e.date) === dateStr && new Date(e.date).getFullYear() !== 1970);
 
     if (existing) {
-      await db.habits.update(existing.id!, { completed: !existing.completed });
+      // In completed-only tracking, untoggling a habit means deleting its daily log entry
+      await db.habits.delete(existing.id!);
     } else {
+      // Toggling a habit on means inserting a completed: true daily log entry
       await db.habits.add({
         habitName,
         completed: true,
@@ -109,6 +111,8 @@ export default function HabitsPage() {
         streak: 0
       });
     }
+    // Trigger real-time cloud backup sync
+    window.dispatchEvent(new CustomEvent('lifeos-trigger-sync', { detail: { isManual: false } }));
     load();
   };
 
@@ -118,26 +122,22 @@ export default function HabitsPage() {
     
     // Check if habit already exists
     if (habitsList.some(h => h.name.toLowerCase() === newHabitName.trim().toLowerCase())) {
-      setModal({
-        isOpen: true,
-        type: 'alert',
-        title: 'Habit Exists',
-        message: `The habit "${newHabitName.trim()}" already exists. Please choose a different name!`,
-        onConfirm: () => setModal(null)
-      });
+      alert('This habit already exists.');
       return;
     }
 
-    // Initialize with a blank record for today
+    // Initialize with a timezone-invariant master definition record
     await db.habits.add({
       habitName: newHabitName.trim(),
       completed: false,
-      date: new Date(),
+      date: new Date(1970, 0, 1),
       streak: 0
     });
 
     setNewHabitName('');
     setShowAddModal(false);
+    // Trigger sync
+    window.dispatchEvent(new CustomEvent('lifeos-trigger-sync', { detail: { isManual: false } }));
     load();
   };
 
@@ -147,11 +147,12 @@ export default function HabitsPage() {
       isOpen: true,
       type: 'confirm',
       title: 'Delete Habit',
-      message: `Are you sure you want to completely delete "${habitName}" and all of its streak history?`,
+      message: `Are you sure you want to completely delete "${habitName}" and all of its history? This action is irreversible.`,
       onConfirm: async () => {
         const toDelete = entries.filter(e => e.habitName === habitName);
         await Promise.all(toDelete.map(e => db.habits.delete(e.id!)));
         setModal(null);
+        window.dispatchEvent(new CustomEvent('lifeos-trigger-sync', { detail: { isManual: false } }));
         load();
       }
     });
@@ -162,7 +163,7 @@ export default function HabitsPage() {
       <motion.div initial="hidden" animate="show" variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } }} className="max-w-[1100px] mx-auto space-y-6">
         
         {/* Header */}
-        <motion.div variants={fi} className="flex items-center justify-between">
+        <motion.div variants={fi} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-[rgba(244,114,182,0.1)]">
               <Flame className="w-5 h-5 text-pink-400" />
@@ -172,12 +173,31 @@ export default function HabitsPage() {
               <p className="text-xs text-[var(--text-tertiary)] font-mono">Build consistency, master your routine</p>
             </div>
           </div>
-          <button 
-            onClick={() => setShowAddModal(true)} 
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)] hover:text-white hover:bg-[var(--bg-hover)] transition-all"
-          >
-            <Plus className="w-4 h-4" /> Add Habit
-          </button>
+          
+          <div className="flex items-center gap-3 self-end sm:self-center">
+            {/* View Mode Toggle Switch */}
+            <div className="flex bg-[var(--bg-elevated)] p-1 rounded-xl border border-[var(--border-subtle)]">
+              <button 
+                onClick={() => setViewMode('weekly')} 
+                className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors ${viewMode === 'weekly' ? 'bg-pink-500 text-white shadow-[0_0_8px_rgba(244,114,182,0.2)]' : 'text-[var(--text-secondary)] hover:text-white'}`}
+              >
+                Weekly Log
+              </button>
+              <button 
+                onClick={() => setViewMode('calendar')} 
+                className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors ${viewMode === 'calendar' ? 'bg-pink-500 text-white shadow-[0_0_8px_rgba(244,114,182,0.2)]' : 'text-[var(--text-secondary)] hover:text-white'}`}
+              >
+                Calendar View
+              </button>
+            </div>
+
+            <button 
+              onClick={() => setShowAddModal(true)} 
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)] hover:text-white hover:bg-[var(--bg-hover)] transition-all"
+            >
+              <Plus className="w-4 h-4" /> Add Habit
+            </button>
+          </div>
         </motion.div>
 
         {/* Stats Grid */}
@@ -211,90 +231,101 @@ export default function HabitsPage() {
           </div>
         </motion.div>
 
-        {/* Habits List */}
-        <motion.div variants={fi} className="space-y-4">
-          {habitsList.map(habit => (
-            <div key={habit.name} className="glass-card p-5 flex flex-col md:flex-row md:items-center justify-between gap-6 hover:border-[rgba(244,114,182,0.15)] transition-all group">
-              
-              {/* Left Column: Info & Streaks */}
-              <div className="flex-1 space-y-2">
+        {/* View Mode Switching */}
+        {viewMode === 'weekly' ? (
+          <motion.div variants={fi} className="space-y-4">
+            {habitsList.map(habit => (
+              <div key={habit.name} className="glass-card p-5 flex flex-col md:flex-row md:items-center justify-between gap-6 hover:border-[rgba(244,114,182,0.15)] transition-all group">
+                
+                {/* Left Column: Info & Streaks */}
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-base font-semibold text-white">{habit.name}</h3>
+                    <span className="flex items-center gap-1 text-xs text-pink-400 font-mono bg-pink-500/5 px-2.5 py-0.5 rounded-full border border-pink-500/10">
+                      <Flame className="w-3.5 h-3.5" /> {habit.streak} day streak
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-4 text-xs text-[var(--text-tertiary)]">
+                    <span>Consistency: <strong className="text-white">{habit.completionRate}%</strong></span>
+                    <span>Total logs: <strong className="text-white">{habit.totalCompleted}</strong></span>
+                  </div>
+                </div>
+
+                {/* Right Column: Weekly Tracker */}
                 <div className="flex items-center gap-3">
-                  <h3 className="text-base font-semibold text-white">{habit.name}</h3>
-                  <span className="flex items-center gap-1 text-xs text-pink-400 font-mono bg-pink-500/5 px-2.5 py-0.5 rounded-full border border-pink-500/10">
-                    <Flame className="w-3.5 h-3.5" /> {habit.streak} day streak
-                  </span>
+                  <div className="flex items-center gap-1.5 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] p-1.5 rounded-2xl">
+                    {weekDates.map(date => {
+                      const dateStr = formatDateStr(date);
+                      const log = habit.activeEntries.find(e => formatDateStr(e.date) === dateStr);
+                      const isCompleted = !!log?.completed;
+                      const isToday = dateStr === formatDateStr(new Date());
+
+                      return (
+                        <button
+                          key={dateStr}
+                          onClick={() => toggleHabit(habit.name, date)}
+                          className={`flex flex-col items-center justify-between w-9 h-12 py-1.5 rounded-xl border transition-all ${
+                            isCompleted
+                              ? 'bg-pink-500 border-pink-500 text-white shadow-[0_0_12px_rgba(244,114,182,0.3)]'
+                              : isToday
+                                ? 'bg-white/5 border-pink-500/40 text-pink-400'
+                                : 'bg-white/[.01] border-transparent text-[var(--text-secondary)] hover:bg-white/5'
+                          }`}
+                        >
+                          <span className="text-[8px] font-mono font-bold uppercase">
+                            {date.toLocaleDateString('en-US', { weekday: 'narrow' })}
+                          </span>
+                          <div className={`w-4 h-4 rounded-md flex items-center justify-center ${isCompleted ? 'bg-white/20' : 'bg-white/5'}`}>
+                            {isCompleted && <Check className="w-3 h-3 text-white" />}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button 
+                    onClick={() => deleteHabit(habit.name)}
+                    className="opacity-0 group-hover:opacity-100 p-2.5 rounded-xl bg-white/5 border border-white/10 text-[var(--text-muted)] hover:text-red-400 hover:bg-red-500/10 transition-all"
+                    title="Delete habit"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
-                <div className="flex items-center gap-4 text-xs text-[var(--text-tertiary)]">
-                  <span>Consistency: <strong className="text-white">{habit.completionRate}%</strong></span>
-                  <span>Total logs: <strong className="text-white">{habit.totalCompleted}</strong></span>
-                </div>
+
               </div>
+            ))}
 
-              {/* Right Column: Weekly Tracker */}
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1.5 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] p-1.5 rounded-2xl">
-                  {weekDates.map(date => {
-                    const dateStr = formatDateStr(date);
-                    const log = habit.entries.find(e => formatDateStr(e.date) === dateStr);
-                    const isCompleted = !!log?.completed;
-                    const isToday = dateStr === formatDateStr(new Date());
-
-                    return (
-                      <button
-                        key={dateStr}
-                        onClick={() => toggleHabit(habit.name, date)}
-                        className={`flex flex-col items-center justify-between w-9 h-12 py-1.5 rounded-xl border transition-all ${
-                          isCompleted
-                            ? 'bg-pink-500 border-pink-500 text-white shadow-[0_0_12px_rgba(244,114,182,0.3)]'
-                            : isToday
-                              ? 'bg-white/5 border-pink-500/40 text-pink-400'
-                              : 'bg-white/[.01] border-transparent text-[var(--text-secondary)] hover:bg-white/5'
-                        }`}
-                      >
-                        <span className="text-[8px] font-mono font-bold uppercase">
-                          {date.toLocaleDateString('en-US', { weekday: 'narrow' })}
-                        </span>
-                        <div className={`w-4 h-4 rounded-md flex items-center justify-center ${isCompleted ? 'bg-white/20' : 'bg-white/5'}`}>
-                          {isCompleted && <Check className="w-3 h-3 text-white" />}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-
+            {habitsList.length === 0 && (
+              <div className="text-center py-16 bg-[var(--bg-secondary)]/30 rounded-2xl border border-dashed border-[var(--border-subtle)]">
+                <Flame className="w-10 h-10 text-[var(--text-muted)] mx-auto mb-3 animate-pulse" />
+                <p className="text-sm font-semibold text-white">No habits set up yet</p>
+                <p className="text-xs text-[var(--text-tertiary)] mt-1 mb-4">Add your first habit to start building streaks.</p>
                 <button 
-                  onClick={() => deleteHabit(habit.name)}
-                  className="opacity-0 group-hover:opacity-100 p-2.5 rounded-xl bg-white/5 border border-white/10 text-[var(--text-muted)] hover:text-red-400 hover:bg-red-500/10 transition-all"
-                  title="Delete habit"
+                  onClick={() => setShowAddModal(true)} 
+                  className="px-4 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)] hover:text-white hover:bg-[var(--bg-hover)] transition-all"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  Create Habit
                 </button>
               </div>
-
-            </div>
-          ))}
-
-          {habitsList.length === 0 && (
-            <div className="text-center py-16 bg-[var(--bg-secondary)]/30 rounded-2xl border border-dashed border-[var(--border-subtle)]">
-              <Flame className="w-10 h-10 text-[var(--text-muted)] mx-auto mb-3 animate-pulse" />
-              <p className="text-sm font-semibold text-white">No habits set up yet</p>
-              <p className="text-xs text-[var(--text-tertiary)] mt-1 mb-4">Add your first habit to start building streaks.</p>
-              <button 
-                onClick={() => setShowAddModal(true)} 
-                className="px-4 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)] hover:text-white hover:bg-[var(--bg-hover)] transition-all"
-              >
-                Create Habit
-              </button>
-            </div>
-          )}
-        </motion.div>
+            )}
+          </motion.div>
+        ) : (
+          <motion.div variants={fi}>
+            <HabitCalendarView 
+              habitsList={habitsList}
+              onToggleHabit={toggleHabit}
+              onDeleteHabit={deleteHabit}
+              formatDateStr={formatDateStr}
+            />
+          </motion.div>
+        )}
 
       </motion.div>
 
       {/* Add Habit Modal */}
       <AnimatePresence>
         {showAddModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -334,6 +365,213 @@ export default function HabitsPage() {
 
       <SystemModal isOpen={!!modal?.isOpen} type={modal?.type || 'alert'} title={modal?.title || ''} message={modal?.message || ''}
         defaultValue={modal?.defaultValue} onConfirm={modal?.onConfirm || (() => {})} onCancel={() => setModal(null)} />
+    </div>
+  );
+}
+
+// ─── Sub-Component for Calendar View ────────────────────────────────
+function HabitCalendarView({ 
+  habitsList, 
+  onToggleHabit, 
+  onDeleteHabit,
+  formatDateStr
+}: { 
+  habitsList: any[]; 
+  onToggleHabit: (name: string, date: Date) => void; 
+  onDeleteHabit: (name: string) => void;
+  formatDateStr: (date: Date) => string;
+}) {
+  const [selectedHabitName, setSelectedHabitName] = useState<string>(
+    habitsList[0]?.name || ''
+  );
+  const [curr, setCurr] = useState(new Date());
+
+  useEffect(() => {
+    if (habitsList.length > 0 && !selectedHabitName) {
+      setSelectedHabitName(habitsList[0].name);
+    }
+  }, [habitsList, selectedHabitName]);
+
+  const activeHabit = habitsList.find(h => h.name === selectedHabitName);
+
+  const daysInMonth = new Date(curr.getFullYear(), curr.getMonth() + 1, 0).getDate();
+  const startDay = new Date(curr.getFullYear(), curr.getMonth(), 1).getDay();
+
+  const completionsThisMonth = useMemo(() => {
+    if (!activeHabit) return 0;
+    return activeHabit.entries.filter((e: any) => {
+      const d = new Date(e.date);
+      return e.completed && d.getMonth() === curr.getMonth() && d.getFullYear() === curr.getFullYear() && d.getFullYear() !== 1970;
+    }).length;
+  }, [activeHabit, curr]);
+
+  const monthConsistency = useMemo(() => {
+    return Math.round((completionsThisMonth / daysInMonth) * 100);
+  }, [completionsThisMonth, daysInMonth]);
+
+  if (habitsList.length === 0) {
+    return (
+      <div className="text-center py-16 bg-[var(--bg-secondary)]/30 rounded-2xl border border-dashed border-[var(--border-subtle)]">
+        <Flame className="w-10 h-10 text-[var(--text-muted)] mx-auto mb-3 animate-pulse" />
+        <p className="text-sm font-semibold text-white">No habits set up yet</p>
+        <p className="text-xs text-[var(--text-tertiary)] mt-1">Add your first habit to view calendar tracking.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Habit Selector Tabs */}
+      <div className="flex flex-wrap gap-2">
+        {habitsList.map(h => (
+          <button
+            key={h.name}
+            onClick={() => setSelectedHabitName(h.name)}
+            className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider border transition-all ${
+              selectedHabitName === h.name
+                ? 'bg-pink-500/10 border-pink-500/30 text-pink-400 shadow-[0_0_12px_rgba(244,114,182,0.1)]'
+                : 'bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-white hover:bg-[var(--bg-hover)]'
+            }`}
+          >
+            {h.name}
+          </button>
+        ))}
+      </div>
+
+      {activeHabit && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Calendar Grid */}
+          <div className="lg:col-span-2 glass-card p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-sm font-bold uppercase tracking-widest flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-pink-400" /> Completion History
+              </h3>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setCurr(new Date(curr.getFullYear(), curr.getMonth() - 1, 1))}
+                  className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-white transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-xs font-bold text-white w-32 text-center uppercase tracking-wider font-mono">
+                  {curr.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                </span>
+                <button
+                  onClick={() => setCurr(new Date(curr.getFullYear(), curr.getMonth() + 1, 1))}
+                  className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-white transition-colors"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-7 gap-2">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+                <div key={d} className="text-center text-[9px] font-bold text-[var(--text-tertiary)] uppercase py-1 tracking-wider font-mono">
+                  {d}
+                </div>
+              ))}
+              
+              {/* Empty offset squares for start of month */}
+              {Array.from({ length: startDay }).map((_, i) => (
+                <div key={`empty-${i}`} className="aspect-square opacity-0" />
+              ))}
+
+              {/* Day cells */}
+              {Array.from({ length: daysInMonth }).map((_, i) => {
+                const day = i + 1;
+                const cellDate = new Date(curr.getFullYear(), curr.getMonth(), day);
+                const cellDateStr = formatDateStr(cellDate);
+                
+                const log = activeHabit.entries.find((e: any) => {
+                  const d = new Date(e.date);
+                  const dateStr = formatDateStr(d);
+                  return dateStr === cellDateStr && d.getFullYear() !== 1970;
+                });
+                
+                const isCompleted = !!log?.completed;
+                const isToday = cellDate.toDateString() === new Date().toDateString();
+
+                return (
+                  <button
+                    key={day}
+                    onClick={() => onToggleHabit(activeHabit.name, cellDate)}
+                    className={`aspect-square rounded-xl border flex flex-col items-center justify-between p-1.5 transition-all group hover:scale-[1.03] ${
+                      isCompleted
+                        ? 'bg-gradient-to-br from-pink-500 to-pink-600 border-pink-500 text-white shadow-[0_0_12px_rgba(244,114,182,0.35)]'
+                        : isToday
+                          ? 'bg-white/5 border-pink-500/40 text-pink-400 animate-pulse'
+                          : 'bg-white/[.01] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-pink-500/30'
+                    }`}
+                  >
+                    <span className={`text-[9px] font-bold ${isCompleted ? 'text-white' : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'}`}>
+                      {day}
+                    </span>
+                    <div className={`w-3.5 h-3.5 rounded-md flex items-center justify-center ${isCompleted ? 'bg-white/20' : 'bg-white/5'}`}>
+                      {isCompleted && <Check className="w-2.5 h-2.5 text-white" />}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Habit Calendar Analytics */}
+          <div className="glass-card p-6 flex flex-col justify-between gap-6">
+            <div className="space-y-6">
+              <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-4">
+                <div>
+                  <h3 className="text-base font-bold text-white truncate max-w-[150px]">{activeHabit.name}</h3>
+                  <p className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider mt-0.5 font-mono">Analytics Engine</p>
+                </div>
+                <button
+                  onClick={() => onDeleteHabit(activeHabit.name)}
+                  className="p-2.5 rounded-xl bg-red-500/5 hover:bg-red-500/10 border border-red-500/10 text-red-400 hover:text-red-300 transition-all"
+                  title="Delete habit completely"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-[var(--text-secondary)]">Current Streak</span>
+                  <span className="text-xs font-bold text-pink-400 flex items-center gap-1 font-mono">
+                    <Flame className="w-3.5 h-3.5 fill-pink-500/20" /> {activeHabit.streak} Days
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-[var(--text-secondary)]">Completions (Month)</span>
+                  <span className="text-xs font-bold text-white font-mono">{completionsThisMonth} Days</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-[var(--text-secondary)]">Monthly Consistency</span>
+                  <span className="text-xs font-bold text-white font-mono">{monthConsistency}%</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-[var(--text-secondary)]">All-Time Completions</span>
+                  <span className="text-xs font-bold text-white font-mono">{activeHabit.totalCompleted}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-[var(--border-subtle)]">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-wider">Overall Consistency Grade</span>
+                <span className="text-xs font-bold text-pink-400 uppercase tracking-widest">
+                  {activeHabit.completionRate >= 80 ? 'A+' : activeHabit.completionRate >= 60 ? 'B' : 'C'}
+                </span>
+              </div>
+              <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-pink-500 to-rose-400 rounded-full transition-all duration-500 shadow-[0_0_8px_rgba(244,114,182,0.3)]"
+                  style={{ width: `${Math.min(100, activeHabit.completionRate)}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -304,9 +304,9 @@ export default function DashboardPage() {
                           onClick={async (e) => {
                             e.stopPropagation();
                             const today = new Date();
-                            const existingLog = habits.find(h => h.habitName === habit.name && new Date(h.date).toDateString() === today.toDateString());
+                            const existingLog = habits.find(h => h.habitName === habit.name && new Date(h.date).toDateString() === today.toDateString() && new Date(h.date).getFullYear() !== 1970);
                             if (existingLog) {
-                              await db.habits.update(existingLog.id!, { completed: !existingLog.completed });
+                              await db.habits.delete(existingLog.id!);
                             } else {
                               await db.habits.add({
                                 habitName: habit.name,
@@ -315,6 +315,7 @@ export default function DashboardPage() {
                                 streak: 0
                               });
                             }
+                            window.dispatchEvent(new CustomEvent('lifeos-trigger-sync', { detail: { isManual: false } }));
                             const updated = await db.habits.toArray();
                             setHabits(updated);
                           }}

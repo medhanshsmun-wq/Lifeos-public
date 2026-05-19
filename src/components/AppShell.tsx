@@ -82,20 +82,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       try {
         const todayStr = new Date().toDateString();
         
-        // 1. Auto-register habits for today
-        const habits = await db.habits.toArray();
-        const uniqueNames = Array.from(new Set(habits.map(h => h.habitName)));
-        for (const name of uniqueNames) {
-          const hasToday = habits.some(h => h.habitName === name && new Date(h.date).toDateString() === todayStr);
-          if (!hasToday) {
-            await db.habits.add({
-              habitName: name,
-              completed: false,
-              date: new Date(),
-              streak: 0
-            });
-          }
-        }
+        // 1. Auto-register habits for today (Removed in favor of timezone-invariant, completed-only calendar tracking)
 
         // 2. Auto-register fitness entry for today (with 0 steps initialized)
         const fitness = await db.fitness.toArray();
@@ -247,7 +234,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 } else if (table.name === 'study') {
                   key = `${item.subject}_${item.topic.trim()}_${new Date(item.date).toDateString()}`;
                 } else if (table.name === 'habits') {
-                  key = `${item.habitName.trim()}_${new Date(item.date).toDateString()}`;
+                  const d = new Date(item.date);
+                  const datePart = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+                  key = `${item.habitName.trim()}_${datePart}`;
                 } else if (table.name === 'trades') {
                   key = `${item.ticker.trim()}_${new Date(item.entryTime).toDateString()}`;
                 } else if (table.name === 'todos') {
@@ -395,7 +384,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 } else if (table.name === 'study') {
                   key = `${localItem.subject}_${localItem.topic.trim()}_${new Date(localItem.date).toDateString()}`;
                 } else if (table.name === 'habits') {
-                  key = `${localItem.habitName.trim()}_${new Date(localItem.date).toDateString()}`;
+                  const d = new Date(localItem.date);
+                  const datePart = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+                  key = `${localItem.habitName.trim()}_${datePart}`;
                 } else if (table.name === 'trades') {
                   key = `${localItem.ticker.trim()}_${new Date(localItem.entryTime).toDateString()}`;
                 } else if (table.name === 'todos') {
