@@ -7,6 +7,7 @@ import { maskEmail } from '@/lib/auth/pin.shared';
 import {
   registerLocalAccount,
   findLocalAccountsByPin,
+  getLocalAccountsCount,
 } from '@/lib/auth/localAccounts';
 import { saveLocalSession } from '@/lib/auth/clientSession';
 import { isCloudAvailable } from '@/lib/cloudSync';
@@ -26,9 +27,31 @@ export default function PinGate({ onAuthenticated }: { onAuthenticated: () => vo
   const [loading, setLoading] = useState(false);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [serverAuth, setServerAuth] = useState(false);
+  const [hasOwner, setHasOwner] = useState(true); // default to true to prevent screen flicker before check completes
 
   useEffect(() => {
-    isCloudAvailable().then(setServerAuth);
+    const checkOwner = async () => {
+      const isCloud = await isCloudAvailable();
+      setServerAuth(isCloud);
+
+      let serverLocked = false;
+      if (isCloud) {
+        try {
+          const res = await fetch('/api/config');
+          if (res.ok) {
+            const data = await res.json();
+            serverLocked = Boolean(data.hasExistingOwner);
+          }
+        } catch (e) {
+          console.error('Failed to check server owner status:', e);
+        }
+      }
+
+      const localCount = await getLocalAccountsCount();
+      setHasOwner(localCount > 0 || serverLocked);
+    };
+
+    void checkOwner();
   }, []);
 
   const resetPin = () => setPin('');
@@ -183,6 +206,7 @@ export default function PinGate({ onAuthenticated }: { onAuthenticated: () => vo
   };
 
   const startRegister = () => {
+    if (hasOwner) return;
     setMode('register');
     setStep('form');
     resetPin();
@@ -361,25 +385,27 @@ export default function PinGate({ onAuthenticated }: { onAuthenticated: () => vo
           <p className="text-xs text-red-400 text-center mb-3 font-mono">{error}</p>
         )}
 
-        <div className="flex gap-2 pt-2 border-t border-white/5">
-          {mode === 'login' ? (
-            <button
-              type="button"
-              onClick={startRegister}
-              className="flex-1 py-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 text-[var(--text-secondary)] hover:text-white hover:bg-white/5"
-            >
-              <UserPlus className="w-3.5 h-3.5" /> New account
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={startLogin}
-              className="flex-1 py-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 text-[var(--text-secondary)] hover:text-white hover:bg-white/5"
-            >
-              <LogIn className="w-3.5 h-3.5" /> Sign in
-            </button>
-          )}
-        </div>
+        {!hasOwner && (
+          <div className="flex gap-2 pt-2 border-t border-white/5">
+            {mode === 'login' ? (
+              <button
+                type="button"
+                onClick={startRegister}
+                className="flex-1 py-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 text-[var(--text-secondary)] hover:text-white hover:bg-white/5"
+              >
+                <UserPlus className="w-3.5 h-3.5" /> New account
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={startLogin}
+                className="flex-1 py-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 text-[var(--text-secondary)] hover:text-white hover:bg-white/5"
+              >
+                <LogIn className="w-3.5 h-3.5" /> Sign in
+              </button>
+            )}
+          </div>
+        )}
 
         {!serverAuth && (
           <p className="text-[10px] text-center text-[var(--text-muted)] mt-3 font-mono">

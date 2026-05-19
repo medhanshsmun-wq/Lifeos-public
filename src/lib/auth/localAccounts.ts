@@ -24,6 +24,13 @@ const authDb = new LifeOSAuthDB();
 
 export async function registerLocalAccount(name: string, email: string, pin: string) {
   if (!isValidPin(pin)) throw new Error('PIN must be exactly 4 digits');
+
+  // Lock local registration if an account already exists
+  const count = await authDb.accounts.count();
+  if (count > 0) {
+    throw new Error('Registration is locked. Only the site owner can log in.');
+  }
+
   const normalizedEmail = email.trim().toLowerCase();
   const existing = await authDb.accounts.where('email').equals(normalizedEmail).first();
   if (existing) throw new Error('An account with this email already exists');
@@ -52,4 +59,8 @@ export async function findLocalAccountsByPin(pin: string) {
 
 export async function getLocalAccountById(id: number) {
   return authDb.accounts.get(id);
+}
+
+export async function getLocalAccountsCount() {
+  return authDb.accounts.count();
 }

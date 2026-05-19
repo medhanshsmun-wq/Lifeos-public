@@ -18,6 +18,15 @@ export async function POST(req: NextRequest) {
     if (!name?.trim() || !email?.trim()) {
       return NextResponse.json({ error: 'Name and email are required' }, { status: 400 });
     }
+
+    // Lock registration if an account already exists
+    const accountCount = await prisma.account.count();
+    if (accountCount > 0) {
+      return NextResponse.json(
+        { error: 'Registration is locked. Only the site owner can log in.' },
+        { status: 403 }
+      );
+    }
     if (!isValidPin(pin)) {
       return NextResponse.json({ error: 'PIN must be exactly 4 digits' }, { status: 400 });
     }

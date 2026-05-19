@@ -41,10 +41,10 @@ export default function SystemModal({
 
   const getIcon = () => {
     switch (type) {
-      case 'alert': return <AlertCircle className="w-5 h-5 text-amber-400" />;
-      case 'confirm': return <HelpCircle className="w-5 h-5 text-blue-400" />;
-      case 'prompt': return <Info className="w-5 h-5 text-purple-400" />;
-      default: return <Info className="w-5 h-5 text-blue-400" />;
+      case 'alert': return <AlertCircle className="w-5 h-5 text-[var(--accent-cyan)]" />;
+      case 'confirm': return <HelpCircle className="w-5 h-5 text-[var(--accent-purple)]" />;
+      case 'prompt': return <Info className="w-5 h-5 text-[var(--accent-cyan)]" />;
+      default: return <Info className="w-5 h-5 text-[var(--accent-cyan)]" />;
     }
   };
 
@@ -55,7 +55,7 @@ export default function SystemModal({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md p-4"
           onClick={onCancel}
         >
           <motion.div
@@ -63,20 +63,22 @@ export default function SystemModal({
             animate={{ scale: 1, y: 0 }}
             exit={{ scale: 0.95, y: 10 }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm bg-[#1e1e1e] border border-[#3c3c3c] rounded-xl shadow-2xl overflow-hidden"
+            className="w-full max-w-sm glass-card border border-white/10 p-6 shadow-2xl overflow-hidden relative space-y-4"
           >
-            <div className="bg-[#252526] px-4 py-2.5 flex items-center justify-between border-b border-[#2b2b2b]">
-              <div className="flex items-center gap-2">
-                {getIcon()}
-                <span className="text-[11px] font-bold text-[#858585] uppercase tracking-wider">{title}</span>
+            <div className="flex items-center justify-between pb-3 border-b border-white/5">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-white/5 border border-white/10">
+                  {getIcon()}
+                </div>
+                <span className="text-xs font-bold tracking-wider text-[var(--text-secondary)] uppercase">{title}</span>
               </div>
-              <button onClick={onCancel} className="text-[#858585] hover:text-white transition-colors">
+              <button onClick={onCancel} className="p-1.5 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-[var(--text-secondary)] hover:text-white transition-all">
                 <X className="w-4 h-4" />
               </button>
             </div>
             
-            <div className="p-6 space-y-5">
-              <p className="text-[13px] text-[#dcdcdc] leading-relaxed">
+            <div className="space-y-4">
+              <p className="text-xs text-[var(--text-secondary)] leading-relaxed font-sans">
                 {message}
               </p>
 
@@ -87,7 +89,7 @@ export default function SystemModal({
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleConfirm()}
-                    className="w-full bg-[#0c0c0c] border border-[#3c3c3c] rounded px-3 py-2.5 text-[13px] text-[#dcdcdc] outline-none focus:border-[#007acc] transition-all"
+                    className="w-full px-3 py-2.5 rounded-xl bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-sm outline-none focus:border-[var(--accent-cyan)] text-white focus:shadow-[0_0_12px_rgba(0,245,255,0.2)] transition-all font-sans"
                   />
                 </div>
               )}
@@ -96,16 +98,16 @@ export default function SystemModal({
                 {type !== 'alert' && (
                   <button
                     onClick={onCancel}
-                    className="px-4 py-2 rounded-lg text-[11px] font-bold text-[#858585] hover:text-[#cccccc] hover:bg-[#2a2d2e] transition-all"
+                    className="px-4 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] hover:text-white hover:bg-white/5 transition-all"
                   >
-                    {cancelText.toUpperCase()}
+                    {cancelText}
                   </button>
                 )}
                 <button
                   onClick={handleConfirm}
-                  className="px-6 py-2 rounded-lg bg-[#007acc] hover:bg-[#0062a3] text-white text-[11px] font-bold transition-all shadow-lg shadow-blue-500/20"
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[var(--accent-cyan)] to-[var(--accent-purple)] text-white hover:opacity-90 active:scale-[0.98] text-xs font-semibold uppercase tracking-wider transition-all shadow-lg shadow-[var(--accent-cyan)]/15"
                 >
-                  {confirmText.toUpperCase()}
+                  {confirmText}
                 </button>
               </div>
             </div>
