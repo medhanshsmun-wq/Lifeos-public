@@ -199,7 +199,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           { name: 'conversations', server: serverDb.conversations },
           { name: 'weeklyReports', server: serverDb.weeklyReports },
           { name: 'timeline', server: serverDb.timeline },
-          { name: 'trades', server: serverDb.trades }
+          { name: 'trades', server: serverDb.trades },
+          { name: 'standardMeals', server: serverDb.standardMeals }
         ];
 
         await Promise.all(tables.map(async (table) => {
@@ -247,6 +248,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   key = `${new Date(item.weekStart).toDateString()}_${new Date(item.weekEnd).toDateString()}`;
                 } else if (table.name === 'timeline') {
                   key = `${item.title.trim()}_${new Date(item.date).toDateString()}`;
+                } else if (table.name === 'standardMeals') {
+                  key = `${item.mealType}_${item.name.trim()}`;
                 } else {
                   key = `${item.id}`;
                 }
@@ -397,6 +400,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   key = `${new Date(localItem.weekStart).toDateString()}_${new Date(localItem.weekEnd).toDateString()}`;
                 } else if (table.name === 'timeline') {
                   key = `${localItem.title.trim()}_${new Date(localItem.date).toDateString()}`;
+                } else if (table.name === 'standardMeals') {
+                  key = `${localItem.mealType}_${localItem.name.trim()}`;
                 } else {
                   key = `${localItem.id}`;
                 }

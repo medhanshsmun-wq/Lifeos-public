@@ -100,4 +100,5 @@ export const serverDb = {
   timeline: new TableBridge('timelineEvent'),
   settings: new TableBridge('userSettings'),
   trades: new TableBridge('trade'),
+  standardMeals: new TableBridge('standardMeal'),
 };

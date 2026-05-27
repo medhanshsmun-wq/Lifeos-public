@@ -4,6 +4,8 @@ import { isDatabaseConfigured } from '@/lib/config';
 import { getAccountIdFromRequest } from '@/lib/auth/getSession';
 import { encryptSettings, decryptSettings } from '@/lib/auth/encryption';
 
+
+
 const MODELS_WITH_ACCOUNT = new Set([
   'project',
   'financeEntry',
@@ -19,6 +21,7 @@ const MODELS_WITH_ACCOUNT = new Set([
   'timelineEvent',
   'trade',
   'userSettings',
+  'standardMeal',
 ]);
 
 function assertDatabaseConfigured() {

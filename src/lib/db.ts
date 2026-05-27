@@ -61,6 +61,20 @@ export interface DietEntry {
   carbs: number;
   fat: number;
   aiBreakdown: string;
+  micronutrients?: string; // JSON string
+}
+
+export interface StandardMeal {
+  id?: number;
+  mealType: 'Breakfast' | 'Morning Snack' | 'Lunch' | 'Evening Snack' | 'Dinner' | 'Misc';
+  name: string;
+  food: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  micronutrients?: string; // JSON string
+  createdAt?: Date;
 }
 
 export interface GymExercise {
@@ -250,6 +264,7 @@ class LifeOSDB extends Dexie {
   settings!: EntityTable<UserSettings, 'id'>;
   trades!: EntityTable<Trade, 'id'>;
   todos!: EntityTable<Todo, 'id'>;
+  standardMeals!: EntityTable<StandardMeal, 'id'>;
 
   constructor(dbName = 'LifeOSDB') {
     super(dbName);
@@ -304,6 +319,26 @@ class LifeOSDB extends Dexie {
       settings: '++id',
       trades: '++id, ticker, status, entryTime, strategy',
       todos: '++id, date, completed, priority',
+    });
+
+    this.version(5).stores({
+      projects: '++id, title, status, category, createdAt, updatedAt',
+      finance: '++id, type, category, date, amount',
+      fitness: '++id, date, steps',
+      diet: '++id, date, mealType',
+      gym: '++id, date, muscleGroup',
+      hobbies: '++id, name, category, date',
+      study: '++id, subject, subjectId, date, duration',
+      subjects: '++id, name, priority',
+      studyAssignments: '++id, subjectId, type, dueDate, completed',
+      habits: '++id, habitName, date, completed',
+      conversations: '++id, title, projectId, createdAt, updatedAt',
+      weeklyReports: '++id, weekStart, weekEnd, createdAt',
+      timeline: '++id, category, date',
+      settings: '++id',
+      trades: '++id, ticker, status, entryTime, strategy',
+      todos: '++id, date, completed, priority',
+      standardMeals: '++id, mealType, name',
     });
   }
 }

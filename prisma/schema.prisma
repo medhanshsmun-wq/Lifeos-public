@@ -28,6 +28,7 @@ model Account {
   weeklyReports WeeklyReport[]
   timeline      TimelineEvent[]
   trades        Trade[]
+  standardMeals StandardMeal[]
 }
 
 model Project {
@@ -95,17 +96,35 @@ model FitnessEntry {
 }
 
 model DietEntry {
-  id          Int      @id @default(autoincrement())
-  accountId   Int
-  date        DateTime
-  mealType    String
-  food        String
-  calories    Int
-  protein     Int
-  carbs       Int
-  fat         Int
-  aiBreakdown String
-  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  id             Int      @id @default(autoincrement())
+  accountId      Int
+  date           DateTime
+  mealType       String
+  food           String
+  calories       Int
+  protein        Int
+  carbs          Int
+  fat            Int
+  aiBreakdown    String
+  micronutrients String?
+  account        Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+}
+
+model StandardMeal {
+  id             Int      @id @default(autoincrement())
+  accountId      Int
+  mealType       String
+  name           String
+  food           String
+  calories       Int
+  protein        Int
+  carbs          Int
+  fat            Int
+  micronutrients String?
+  createdAt      DateTime @default(now())
+  account        Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@index([accountId])
 }
